@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { API_BASE_URL } from "../config";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -94,7 +95,7 @@ export default function ImportStandard({ onBack }) {
       setAnalysis("");
 
       const response = await fetch(
-        "http://localhost:3001/api/analyze-imported-standard",
+        `${API_BASE_URL}/api/analyze-imported-standard`,
         {
           method: "POST",
           headers: {

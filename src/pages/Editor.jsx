@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "../config";
 
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
@@ -120,7 +121,7 @@ export default function Editor({ onBack }) {
       setLoadingAI(true);
       setAiResult("");
 
-      const response = await fetch("http://localhost:3001/api/improve-standard", {
+      const response = await fetch(`${API_BASE_URL}/api/improve-standard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
