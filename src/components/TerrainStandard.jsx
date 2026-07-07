@@ -1,6 +1,7 @@
 import { useState } from "react";
 import GeneratedStandard from "./GeneratedStandard";
 import StandardsLibrary from "./StandardsLibrary";
+import { API_BASE_URL } from "../config";
 
 export default function TerrainStandard() {
   const [title, setTitle] = useState("");
@@ -139,7 +140,7 @@ export default function TerrainStandard() {
       setResult(null);
 
       const response = await fetch(
-        "http://192.168.68.76:3001/api/generate-terrain-standard",
+        `${API_BASE_URL}/api/generate-terrain-standard`,
         {
           method: "POST",
           headers: {
