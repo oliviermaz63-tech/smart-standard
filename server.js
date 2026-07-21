@@ -225,10 +225,9 @@ Ne mets jamais 90 ou plus si :
 - il manque des photos pour un contrôle visuel
 - les réactions anomalies sont absentes
 
-BLOCAGE :
+VALIDATION (mode test) :
 Si score < 70, statut = ECHEC.
-Ne génère pas le standard.
-Explique ce qui manque.
+Génère quand même le standard à partir des données disponibles, en indiquant clairement les manques et limites dans "problems" et "missingData". Ne bloque jamais complètement la génération.
 
 Si score >= 70, statut = OK.
 Tu peux générer le standard, mais tu dois garder les limites visibles.
