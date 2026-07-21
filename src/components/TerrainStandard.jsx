@@ -1,7 +1,6 @@
 import { useState } from "react";
 import GeneratedStandard from "./GeneratedStandard";
 import StandardsLibrary from "./StandardsLibrary";
-import { API_BASE_URL } from "../config";
 
 export default function TerrainStandard() {
   const [title, setTitle] = useState("");
@@ -140,7 +139,7 @@ export default function TerrainStandard() {
       setResult(null);
 
       const response = await fetch(
-        `${API_BASE_URL}/api/generate-terrain-standard`,
+        "http://192.168.68.76:3001/api/generate-terrain-standard",
         {
           method: "POST",
           headers: {
@@ -167,21 +166,29 @@ export default function TerrainStandard() {
   }
 
   function saveStandard() {
-    const existing = JSON.parse(localStorage.getItem("smartstandards")) || [];
+    try {
+      const raw = localStorage.getItem("smartstandards");
+      const existing = raw ? JSON.parse(raw) : [];
 
-    const newStandard = {
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
-      result,
-      inputSteps: steps,
-    };
+      const newStandard = {
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        result,
+        inputSteps: steps,
+      };
 
-    localStorage.setItem(
-      "smartstandards",
-      JSON.stringify([newStandard, ...existing])
-    );
+      localStorage.setItem(
+        "smartstandards",
+        JSON.stringify([newStandard, ...existing])
+      );
 
-    alert("Standard sauvegardé");
+      alert("Standard sauvegardé");
+    } catch (error) {
+      console.error("Erreur sauvegarde standard :", error);
+      alert(
+        "Impossible de sauvegarder (stockage local indisponible ou plein). Essaie en dehors de la navigation privée, ou libère de l'espace sur ton téléphone."
+      );
+    }
   }
 
   return (
