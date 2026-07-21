@@ -207,7 +207,7 @@ export default function GeneratedStandard({
 
 
 
-      {isOk && (
+      {result.steps?.length > 0 && (
 
         <div
           id="standard-print"
