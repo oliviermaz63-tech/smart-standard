@@ -352,258 +352,131 @@ export default function GeneratedStandard({
 
 
 
-            <table className="w-full border-collapse text-sm">
-
-              <thead>
-
-                <tr className="bg-white">
-
-                  <th
-                    colSpan="11"
-                    className="border text-center text-3xl font-black py-6"
-                  >
-                    STANDARD DE TRAVAIL
-                  </th>
-
-                </tr>
-
-
-
-
-
-                <tr className="bg-slate-100">
-
-                  <th
-                    colSpan="3"
-                    className="border p-4 text-left text-lg font-black"
-                  >
-                    Type de standard
-                  </th>
-
-                  <th
-                    colSpan="8"
-                    className="border p-4 text-left text-lg font-black"
-                  >
-                    Description du travail
-                  </th>
-
-                </tr>
-
-
-
-
-
-                <tr>
-
-                  <td
-                    colSpan="3"
-                    className="border p-4 font-bold bg-white"
-                  >
-                    Standard opératoire
-                  </td>
-
-                  <td
-                    colSpan="8"
-                    className="border p-4 bg-white"
-                  >
-                    {result.general?.title}
-                  </td>
-
-                </tr>
-
-
-
-
-
-                <tr className="bg-slate-950 text-white">
-
-                  <th className="border p-3 w-[70px]">
-                    No.
-                  </th>
-
-                  <th
-                    colSpan="8"
-                    className="border p-3"
-                  >
-                    Opération
-                  </th>
-
-                  <th
-                    colSpan="3"
-                    className="border p-3"
-                  >
-                    Sécu / Qualité / Compétence
-                  </th>
-
-                </tr>
-
-              </thead>
-
-
-
-
-
-              <tbody>
-
-                {result.steps?.map((step, index) => (
-
-                  <tr
-                    key={index}
-                    className="align-top"
-                  >
-
-                    <td className="border p-4 text-center font-black text-2xl">
-                      {step.number || index + 1}
-                    </td>
-
-
-
-
-
-                    <td
-                      colSpan="4"
-                      className="border p-4"
-                    >
-
-                      <div className="space-y-4">
-
-                        <div>
-
-                          <p className="font-black text-lg mb-3">
-                            Opération
-                          </p>
-
-                          <p className="leading-7 text-base">
-                            {step.operation}
-                          </p>
-
-                        </div>
-
-
-
-
-
-                        <div className="grid grid-cols-2 gap-4">
-
-                          <div>
-
-                            <p className="font-black text-green-700 mb-2">
-                              Critère OK
-                            </p>
-
-                            <div className="border rounded-xl p-3 bg-green-50 min-h-[90px]">
-                              {step.okCriteria || "À préciser"}
-                            </div>
-
-                          </div>
-
-
-
-
-
-                          <div>
-
-                            <p className="font-black text-red-700 mb-2">
-                              Critère NOK
-                            </p>
-
-                            <div className="border rounded-xl p-3 bg-red-50 min-h-[90px]">
-                              {step.nokCriteria || "À préciser"}
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    </td>
-
-
-
-
-
-                    <td
-                      colSpan="4"
-                      className="border p-4"
-                    >
-
-                      <div className="grid grid-cols-3 gap-3">
-
-                        <Photo
-                          label="Terrain"
-                          src={inputSteps?.[index]?.preview}
-                        />
-
-                        <Photo
-                          label="OK"
-                          src={inputSteps?.[index]?.okPreview}
-                        />
-
-                        <Photo
-                          label="NOK"
-                          src={inputSteps?.[index]?.nokPreview}
-                        />
-
-                      </div>
-
-                    </td>
-
-
-
-
-
-                    <td className="border p-4 bg-red-50">
-
-                      <p className="font-black text-red-700 mb-2">
-                        Sécurité
-                      </p>
-
-                      <p className="text-sm leading-6">
-                        {step.safety || "-"}
-                      </p>
-
-                    </td>
-
-
-
-
-
-                    <td className="border p-4 bg-blue-50">
-
-                      <p className="font-black text-blue-700 mb-2">
-                        Qualité
-                      </p>
-
-                      <p className="text-sm leading-6">
-                        {step.quality || "-"}
-                      </p>
-
-                    </td>
-
-
-
-
-
-                    <td className="border p-4 bg-amber-50">
-
-                      <p className="font-black text-amber-700 mb-2">
-                        Compétence
-                      </p>
-
-                      <p className="text-sm leading-6">
-                        Formation requise / validation terrain
-                      </p>
-
-                    </td>
-
+            <div className="border rounded-xl overflow-hidden">
+
+              <div className="border-b text-center text-2xl md:text-3xl font-black py-5 bg-white">
+                STANDARD DE TRAVAIL
+              </div>
+
+              <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed" }}>
+
+                <colgroup>
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "30%" }} />
+                  <col style={{ width: "21%" }} />
+                  <col style={{ width: "14.3%" }} />
+                  <col style={{ width: "14.3%" }} />
+                  <col style={{ width: "14.4%" }} />
+                </colgroup>
+
+                <thead>
+
+                  <tr className="bg-slate-100 text-left">
+                    <th className="border-r border-t p-4 font-bold" colSpan={2}>
+                      Type de standard
+                    </th>
+                    <th className="border-t p-4 font-bold" colSpan={4}>
+                      Description du travail
+                    </th>
                   </tr>
 
-                ))}
+                  <tr className="bg-white text-left">
+                    <td className="border-r border-b p-4" colSpan={2}>
+                      Standard opératoire
+                    </td>
+                    <td className="border-b p-4" colSpan={4}>
+                      {result.general?.title}
+                    </td>
+                  </tr>
 
-              </tbody>
+                  <tr className="text-white bg-slate-950 text-sm font-bold text-left">
+                    <th className="border-r border-slate-800 p-3">No.</th>
+                    <th className="border-r border-slate-800 p-3">Opération</th>
+                    <th className="border-r border-slate-800 p-3">Photos</th>
+                    <th className="border-r border-slate-800 p-3">Sécurité</th>
+                    <th className="border-r border-slate-800 p-3">Qualité</th>
+                    <th className="p-3">Compétence</th>
+                  </tr>
 
-            </table>
+                </thead>
+
+                <tbody>
+
+                  {result.steps?.map((step, index) => (
+                    <tr
+                      key={index}
+                      className="text-sm border-b break-inside-avoid align-top"
+                    >
+
+                      <td className="border-r p-3 text-center font-black text-xl">
+                        {step.number || index + 1}
+                      </td>
+
+                      <td className="border-r p-3">
+
+                        <p className="font-black mb-2">Opération</p>
+                        <p className="leading-6 mb-3">{step.operation}</p>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="font-black text-green-700 text-xs mb-1">
+                              Critère OK
+                            </p>
+                            <div className="border rounded-lg p-2 bg-green-50 text-xs leading-5 min-h-[60px]">
+                              {step.okCriteria || "À préciser"}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-black text-red-700 text-xs mb-1">
+                              Critère NOK
+                            </p>
+                            <div className="border rounded-lg p-2 bg-red-50 text-xs leading-5 min-h-[60px]">
+                              {step.nokCriteria || "À préciser"}
+                            </div>
+                          </div>
+                        </div>
+
+                      </td>
+
+                      <td className="border-r p-3">
+                        <div className="grid grid-cols-3 gap-1">
+                          <Photo label="Terrain" src={inputSteps?.[index]?.preview} />
+                          <Photo label="OK" src={inputSteps?.[index]?.okPreview} />
+                          <Photo label="NOK" src={inputSteps?.[index]?.nokPreview} />
+                        </div>
+                      </td>
+
+                      <td className="border-r p-3 bg-red-50">
+                        <p className="font-black text-red-700 text-xs mb-1">
+                          Sécurité
+                        </p>
+                        <p className="text-xs leading-5">{step.safety || "-"}</p>
+                      </td>
+
+                      <td className="border-r p-3 bg-blue-50">
+                        <p className="font-black text-blue-700 text-xs mb-1">
+                          Qualité
+                        </p>
+                        <p className="text-xs leading-5">{step.quality || "-"}</p>
+                      </td>
+
+                      <td className="p-3 bg-amber-50">
+                        <p className="font-black text-amber-700 text-xs mb-1">
+                          Compétence
+                        </p>
+                        <p className="text-xs leading-5">
+                          Formation requise / validation terrain
+                        </p>
+                      </td>
+
+                    </tr>
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
 
           </div>
 
@@ -721,12 +594,12 @@ function Photo({
         <img
           src={src}
           alt=""
-          className="w-full h-40 object-cover"
+          className="w-full h-40 print:h-20 object-cover"
         />
 
       ) : (
 
-        <div className="h-40 flex items-center justify-center text-slate-400">
+        <div className="h-40 print:h-20 flex items-center justify-center text-slate-400">
           Photo
         </div>
 
