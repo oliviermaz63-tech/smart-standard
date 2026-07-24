@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../config";
+import { PhotoUpload } from "../components/TerrainStandard";
 
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
@@ -22,6 +23,9 @@ const emptyStep = {
   safety: "",
   quality: "",
   duration: "",
+  preview: null,
+  okPreview: null,
+  nokPreview: null,
 };
 
 export default function Editor({ onBack }) {
@@ -71,8 +75,26 @@ export default function Editor({ onBack }) {
         safety: "",
         quality: "",
         duration: "",
+        preview: null,
+        okPreview: null,
+        nokPreview: null,
       },
     ]);
+  }
+
+  function updatePhoto(id, field, file) {
+    if (!file) return;
+
+    setSteps(
+      steps.map((step) =>
+        step.id === id
+          ? {
+              ...step,
+              [field]: URL.createObjectURL(file),
+            }
+          : step
+      )
+    );
   }
 
   function removeStep(id) {
@@ -346,6 +368,32 @@ export default function Editor({ onBack }) {
                         updateStep(step.id, "duration", e.target.value)
                       }
                     />
+
+                    <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                      <PhotoUpload
+                        title="Photo terrain"
+                        preview={step.preview}
+                        onChange={(file) =>
+                          updatePhoto(step.id, "preview", file)
+                        }
+                      />
+
+                      <PhotoUpload
+                        title="Photo OK"
+                        preview={step.okPreview}
+                        onChange={(file) =>
+                          updatePhoto(step.id, "okPreview", file)
+                        }
+                      />
+
+                      <PhotoUpload
+                        title="Photo NOK"
+                        preview={step.nokPreview}
+                        onChange={(file) =>
+                          updatePhoto(step.id, "nokPreview", file)
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -464,7 +512,7 @@ export default function Editor({ onBack }) {
               </div>
             </div>
 
-            <div className="border rounded-2xl overflow-hidden print:border-none">
+            <div id="standard-print" className="border rounded-2xl overflow-hidden print:border-none">
               <div className="bg-slate-950 text-white p-6 print:bg-white print:text-black print:border-b">
                 <p className="text-sm uppercase tracking-wide print:text-slate-600">
                   Smart Standard
@@ -548,6 +596,49 @@ export default function Editor({ onBack }) {
                             {step.duration || "Non défini"}
                           </div>
                         </div>
+
+                        {(step.preview || step.okPreview || step.nokPreview) && (
+                          <div className="mt-4 grid grid-cols-3 gap-3">
+                            {step.preview && (
+                              <div>
+                                <p className="text-xs font-bold text-slate-500 mb-1 text-center">
+                                  Terrain
+                                </p>
+                                <img
+                                  src={step.preview}
+                                  alt=""
+                                  className="w-full h-28 object-cover rounded-lg border"
+                                />
+                              </div>
+                            )}
+
+                            {step.okPreview && (
+                              <div>
+                                <p className="text-xs font-bold text-green-700 mb-1 text-center">
+                                  OK
+                                </p>
+                                <img
+                                  src={step.okPreview}
+                                  alt=""
+                                  className="w-full h-28 object-cover rounded-lg border"
+                                />
+                              </div>
+                            )}
+
+                            {step.nokPreview && (
+                              <div>
+                                <p className="text-xs font-bold text-red-700 mb-1 text-center">
+                                  NOK
+                                </p>
+                                <img
+                                  src={step.nokPreview}
+                                  alt=""
+                                  className="w-full h-28 object-cover rounded-lg border"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
