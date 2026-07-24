@@ -1,1 +1,37 @@
 @import "tailwindcss";
+
+@media print {
+
+  body * {
+    visibility: hidden;
+  }
+
+  #standard-print,
+  #standard-print * {
+    visibility: visible;
+  }
+
+  #standard-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  #standard-print table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  #standard-print td,
+  #standard-print th {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 11px;
+  }
+
+}
