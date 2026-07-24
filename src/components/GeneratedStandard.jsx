@@ -255,6 +255,75 @@ export default function GeneratedStandard({
 
 
 
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-200 border-b print:border-slate-400">
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Usine
+              </p>
+              <input
+                type="text"
+                defaultValue=""
+                placeholder="À compléter"
+                className="w-full bg-transparent font-bold outline-none placeholder:font-normal placeholder:text-slate-400"
+              />
+            </div>
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                N° document
+              </p>
+              <input
+                type="text"
+                defaultValue=""
+                placeholder="À compléter"
+                className="w-full bg-transparent font-bold outline-none placeholder:font-normal placeholder:text-slate-400"
+              />
+            </div>
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Révision
+              </p>
+              <input
+                type="text"
+                defaultValue="V1"
+                className="w-full bg-transparent font-bold outline-none"
+              />
+            </div>
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Page
+              </p>
+              <p className="font-bold">1 / 1</p>
+            </div>
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Aire / Zone
+              </p>
+              <p className="font-bold">{result.general?.zone || "-"}</p>
+            </div>
+
+            <div className="bg-white p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Station de travail
+              </p>
+              <p className="font-bold">{result.general?.machine || "-"}</p>
+            </div>
+
+            <div className="bg-white p-4 col-span-2">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">
+                Objectif
+              </p>
+              <p className="font-bold">{result.general?.objective || "-"}</p>
+            </div>
+
+          </div>
+
+
           <div className="p-8 bg-white">
 
             <div className="flex justify-end gap-3 mb-6 print:hidden">
@@ -542,7 +611,71 @@ export default function GeneratedStandard({
 
 
 
-          <div className="bg-slate-950 text-slate-300 p-6 text-sm flex justify-between">
+
+          <div className="bg-white p-8 border-t print:border-slate-400">
+
+            <p className="uppercase tracking-widest text-xs font-bold text-slate-500 mb-4">
+              Règles de non-conformité et validation
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-4 mb-8 text-sm">
+
+              <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                <p className="font-black text-red-700 mb-2">Qualité — réaction en cas d'écart</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {result.steps?.filter((s) => s.reaction).map((s, i) => (
+                    <li key={i}>{s.reaction}</li>
+                  ))}
+                  {!result.steps?.some((s) => s.reaction) && (
+                    <li>À préciser lors de la validation terrain.</li>
+                  )}
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                <p className="font-black text-amber-700 mb-2">Recommandations avant diffusion</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {result.validation?.recommendationsBeforeUse?.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                  {!result.validation?.recommendationsBeforeUse?.length && (
+                    <li>Aucune recommandation particulière.</li>
+                  )}
+                </ul>
+              </div>
+
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+
+              <div>
+                <p className="font-bold mb-6">Écrit par</p>
+                <p className="border-t pt-2 text-slate-400">Signature :</p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-6">Vérifié par</p>
+                <p className="border-t pt-2 text-slate-400">Signature :</p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-6">Approuvé par</p>
+                <p className="border-t pt-2 text-slate-400">Signature :</p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-6">Opérateur expérimenté</p>
+                <p className="border-t pt-2 text-slate-400">Signature :</p>
+              </div>
+
+            </div>
+
+          </div>
+
+
+
+
+          <div className="bg-slate-950 text-slate-300 p-6 text-sm flex justify-between print:hidden">
 
             <div>
               Smart Standard © — Génération IA de standards industriels
