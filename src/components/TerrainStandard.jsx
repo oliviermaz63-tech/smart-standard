@@ -385,7 +385,7 @@ export default function TerrainStandard() {
   );
 }
 
-function PhotoUpload({ title, preview, onChange }) {
+export function PhotoUpload({ title, preview, onChange }) {
   return (
     <div className="border rounded-2xl overflow-hidden bg-slate-50">
       <div className="bg-slate-100 px-4 py-3 font-bold text-center">
