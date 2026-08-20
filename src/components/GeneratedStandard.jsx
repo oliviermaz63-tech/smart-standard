@@ -594,12 +594,12 @@ function Photo({
         <img
           src={src}
           alt=""
-          className="w-full h-40 print:h-28 object-cover"
+          className="w-full h-40 object-cover"
         />
 
       ) : (
 
-        <div className="h-40 print:h-28 flex items-center justify-center text-slate-400">
+        <div className="h-40 flex items-center justify-center text-slate-400">
           Photo
         </div>
 
