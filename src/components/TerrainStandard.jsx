@@ -442,7 +442,14 @@ export function PhotoUpload({ title, preview, onChange, onRemove }) {
           type="file"
           accept="image/*"
           capture="environment"
-          onChange={(e) => onChange(e.target.files[0])}
+          onChange={(e) => {
+            onChange(e.target.files[0]);
+            // Réinitialise le champ pour permettre de resélectionner exactement
+            // le même fichier plus tard (ex: après suppression de la photo) :
+            // sans ça, le navigateur ne redéclenche pas onChange si le fichier
+            // choisi est identique à la sélection précédente.
+            e.target.value = "";
+          }}
           className="text-sm w-full"
         />
       </div>
