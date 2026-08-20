@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../config";
 import { PhotoUpload } from "../components/TerrainStandard";
+import { compressImage } from "../utils/compressImage";
 
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
@@ -82,15 +83,35 @@ export default function Editor({ onBack }) {
     ]);
   }
 
-  function updatePhoto(id, field, file) {
+  async function updatePhoto(id, field, file) {
     if (!file) return;
 
-    setSteps(
-      steps.map((step) =>
+    try {
+      const compressed = await compressImage(file);
+
+      setSteps((current) =>
+        current.map((step) =>
+          step.id === id
+            ? {
+                ...step,
+                [field]: compressed,
+              }
+            : step
+        )
+      );
+    } catch (error) {
+      console.error("Erreur compression photo :", error);
+      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+    }
+  }
+
+  function removePhoto(id, field) {
+    setSteps((current) =>
+      current.map((step) =>
         step.id === id
           ? {
               ...step,
-              [field]: URL.createObjectURL(file),
+              [field]: null,
             }
           : step
       )
@@ -376,6 +397,7 @@ export default function Editor({ onBack }) {
                         onChange={(file) =>
                           updatePhoto(step.id, "preview", file)
                         }
+                        onRemove={() => removePhoto(step.id, "preview")}
                       />
 
                       <PhotoUpload
@@ -384,6 +406,7 @@ export default function Editor({ onBack }) {
                         onChange={(file) =>
                           updatePhoto(step.id, "okPreview", file)
                         }
+                        onRemove={() => removePhoto(step.id, "okPreview")}
                       />
 
                       <PhotoUpload
@@ -392,6 +415,7 @@ export default function Editor({ onBack }) {
                         onChange={(file) =>
                           updatePhoto(step.id, "nokPreview", file)
                         }
+                        onRemove={() => removePhoto(step.id, "nokPreview")}
                       />
                     </div>
                   </div>
@@ -580,64 +604,94 @@ export default function Editor({ onBack }) {
                           {step.description || "Description non renseignée"}
                         </p>
 
-                        <div className="mt-4 grid md:grid-cols-3 gap-3 text-sm print:grid-cols-3">
-                          <div className="bg-red-50 rounded-lg p-3 print:bg-white print:border">
-                            <strong>Sécurité :</strong>{" "}
-                            {step.safety || "RAS"}
-                          </div>
+                        <table
+                          className="w-full mt-4 text-sm border-collapse"
+                          style={{ tableLayout: "fixed" }}
+                        >
+                          <colgroup>
+                            <col style={{ width: "33.33%" }} />
+                            <col style={{ width: "33.33%" }} />
+                            <col style={{ width: "33.34%" }} />
+                          </colgroup>
+                          <tbody>
+                            <tr>
+                              <td className="bg-red-50 print:bg-white print:border p-3 align-top">
+                                <strong>Sécurité :</strong>{" "}
+                                {step.safety || "RAS"}
+                              </td>
 
-                          <div className="bg-blue-50 rounded-lg p-3 print:bg-white print:border">
-                            <strong>Qualité :</strong>{" "}
-                            {step.quality || "RAS"}
-                          </div>
+                              <td className="bg-blue-50 print:bg-white print:border p-3 align-top">
+                                <strong>Qualité :</strong>{" "}
+                                {step.quality || "RAS"}
+                              </td>
 
-                          <div className="bg-slate-100 rounded-lg p-3 print:bg-white print:border">
-                            <strong>Temps :</strong>{" "}
-                            {step.duration || "Non défini"}
-                          </div>
-                        </div>
+                              <td className="bg-slate-100 print:bg-white print:border p-3 align-top">
+                                <strong>Temps :</strong>{" "}
+                                {step.duration || "Non défini"}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
 
                         {(step.preview || step.okPreview || step.nokPreview) && (
-                          <div className="mt-4 grid grid-cols-3 gap-3">
-                            {step.preview && (
-                              <div>
-                                <p className="text-xs font-bold text-slate-500 mb-1 text-center">
-                                  Terrain
-                                </p>
-                                <img
-                                  src={step.preview}
-                                  alt=""
-                                  className="w-full h-28 object-cover rounded-lg border"
-                                />
-                              </div>
-                            )}
+                          <table
+                            className="w-full mt-4 border-collapse"
+                            style={{ tableLayout: "fixed" }}
+                          >
+                            <colgroup>
+                              <col style={{ width: "33.33%" }} />
+                              <col style={{ width: "33.33%" }} />
+                              <col style={{ width: "33.34%" }} />
+                            </colgroup>
+                            <tbody>
+                              <tr>
+                                <td className="p-1 align-top">
+                                  {step.preview && (
+                                    <>
+                                      <p className="text-xs font-bold text-slate-500 mb-1 text-center">
+                                        Terrain
+                                      </p>
+                                      <img
+                                        src={step.preview}
+                                        alt=""
+                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                      />
+                                    </>
+                                  )}
+                                </td>
 
-                            {step.okPreview && (
-                              <div>
-                                <p className="text-xs font-bold text-green-700 mb-1 text-center">
-                                  OK
-                                </p>
-                                <img
-                                  src={step.okPreview}
-                                  alt=""
-                                  className="w-full h-28 object-cover rounded-lg border"
-                                />
-                              </div>
-                            )}
+                                <td className="p-1 align-top">
+                                  {step.okPreview && (
+                                    <>
+                                      <p className="text-xs font-bold text-green-700 mb-1 text-center">
+                                        OK
+                                      </p>
+                                      <img
+                                        src={step.okPreview}
+                                        alt=""
+                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                      />
+                                    </>
+                                  )}
+                                </td>
 
-                            {step.nokPreview && (
-                              <div>
-                                <p className="text-xs font-bold text-red-700 mb-1 text-center">
-                                  NOK
-                                </p>
-                                <img
-                                  src={step.nokPreview}
-                                  alt=""
-                                  className="w-full h-28 object-cover rounded-lg border"
-                                />
-                              </div>
-                            )}
-                          </div>
+                                <td className="p-1 align-top">
+                                  {step.nokPreview && (
+                                    <>
+                                      <p className="text-xs font-bold text-red-700 mb-1 text-center">
+                                        NOK
+                                      </p>
+                                      <img
+                                        src={step.nokPreview}
+                                        alt=""
+                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                      />
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
                         )}
                       </div>
                     ))}
