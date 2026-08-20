@@ -654,7 +654,7 @@ export default function Editor({ onBack }) {
                                       <img
                                         src={step.preview}
                                         alt=""
-                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                        className="w-full h-56 object-cover rounded-lg border"
                                       />
                                     </>
                                   )}
@@ -669,7 +669,7 @@ export default function Editor({ onBack }) {
                                       <img
                                         src={step.okPreview}
                                         alt=""
-                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                        className="w-full h-56 object-cover rounded-lg border"
                                       />
                                     </>
                                   )}
@@ -684,7 +684,7 @@ export default function Editor({ onBack }) {
                                       <img
                                         src={step.nokPreview}
                                         alt=""
-                                        className="w-full h-28 print:h-24 object-cover rounded-lg border"
+                                        className="w-full h-56 object-cover rounded-lg border"
                                       />
                                     </>
                                   )}
