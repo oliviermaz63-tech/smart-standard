@@ -2,6 +2,7 @@ import { useState } from "react";
 import GeneratedStandard from "./GeneratedStandard";
 import StandardsLibrary from "./StandardsLibrary";
 import { API_BASE_URL } from "../config";
+import { compressImage } from "../utils/compressImage";
 
 export default function TerrainStandard() {
   const [title, setTitle] = useState("");
@@ -34,15 +35,35 @@ export default function TerrainStandard() {
     );
   }
 
-  function updatePhoto(id, field, file) {
+  async function updatePhoto(id, field, file) {
     if (!file) return;
 
-    setSteps(
-      steps.map((step) =>
+    try {
+      const compressed = await compressImage(file);
+
+      setSteps((current) =>
+        current.map((step) =>
+          step.id === id
+            ? {
+                ...step,
+                [field]: compressed,
+              }
+            : step
+        )
+      );
+    } catch (error) {
+      console.error("Erreur compression photo :", error);
+      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+    }
+  }
+
+  function removePhoto(id, field) {
+    setSteps((current) =>
+      current.map((step) =>
         step.id === id
           ? {
               ...step,
-              [field]: URL.createObjectURL(file),
+              [field]: null,
             }
           : step
       )
@@ -334,18 +355,21 @@ export default function TerrainStandard() {
                       title="Photo terrain"
                       preview={step.preview}
                       onChange={(file) => updatePhoto(step.id, "preview", file)}
+                      onRemove={() => removePhoto(step.id, "preview")}
                     />
 
                     <PhotoUpload
                       title="Photo OK"
                       preview={step.okPreview}
                       onChange={(file) => updatePhoto(step.id, "okPreview", file)}
+                      onRemove={() => removePhoto(step.id, "okPreview")}
                     />
 
                     <PhotoUpload
                       title="Photo NOK"
                       preview={step.nokPreview}
                       onChange={(file) => updatePhoto(step.id, "nokPreview", file)}
+                      onRemove={() => removePhoto(step.id, "nokPreview")}
                     />
                   </div>
                 </div>
@@ -385,11 +409,21 @@ export default function TerrainStandard() {
   );
 }
 
-export function PhotoUpload({ title, preview, onChange }) {
+export function PhotoUpload({ title, preview, onChange, onRemove }) {
   return (
     <div className="border rounded-2xl overflow-hidden bg-slate-50">
-      <div className="bg-slate-100 px-4 py-3 font-bold text-center">
-        {title}
+      <div className="bg-slate-100 px-4 py-3 font-bold text-center flex items-center justify-between">
+        <span>{title}</span>
+
+        {preview && onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-red-600 text-xs font-bold hover:underline"
+          >
+            ✕ Supprimer
+          </button>
+        )}
       </div>
 
       <div className="h-48 flex items-center justify-center overflow-hidden bg-white">

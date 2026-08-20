@@ -439,7 +439,7 @@ export default function GeneratedStandard({
                       </td>
 
                       <td className="border-r p-3">
-                        <div className="grid grid-cols-3 gap-1">
+                        <div className="grid grid-cols-3 gap-1 print:grid-cols-1 print:gap-2">
                           <Photo label="Terrain" src={inputSteps?.[index]?.preview} />
                           <Photo label="OK" src={inputSteps?.[index]?.okPreview} />
                           <Photo label="NOK" src={inputSteps?.[index]?.nokPreview} />
@@ -594,12 +594,12 @@ function Photo({
         <img
           src={src}
           alt=""
-          className="w-full h-40 print:h-20 object-cover"
+          className="w-full h-40 print:h-28 object-cover"
         />
 
       ) : (
 
-        <div className="h-40 print:h-20 flex items-center justify-center text-slate-400">
+        <div className="h-40 print:h-28 flex items-center justify-center text-slate-400">
           Photo
         </div>
 
