@@ -6,10 +6,25 @@ import { compressImage } from "../utils/compressImage";
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
 
+const TRAMES = {
+  classique: {
+    label: "Standard classique",
+    description:
+      "Objectif, sécurité, qualité, moyens nécessaires et déroulé opératoire détaillé avec photos Terrain / OK / NOK par étape.",
+  },
+  instruction_travail: {
+    label: "Instruction de travail",
+    description:
+      "Format compact type fiche de poste : un tableau avec opération, description, une illustration et un temps par étape.",
+  },
+};
+
 const emptyStandard = {
   title: "",
   zone: "",
   owner: "",
+  reference: "",
+  date: "",
   objective: "",
   safety: "",
   quality: "",
@@ -30,6 +45,7 @@ const emptyStep = {
 };
 
 export default function Editor({ onBack }) {
+  const [trame, setTrame] = useState(null);
   const [standard, setStandard] = useState(emptyStandard);
   const [steps, setSteps] = useState([emptyStep]);
   const [showPreview, setShowPreview] = useState(false);
@@ -41,18 +57,46 @@ export default function Editor({ onBack }) {
     const savedDraft = localStorage.getItem(STORAGE_KEY);
     if (savedDraft) {
       const parsedDraft = JSON.parse(savedDraft);
-      setStandard(parsedDraft.standard || emptyStandard);
+      setStandard({ ...emptyStandard, ...(parsedDraft.standard || {}) });
       setSteps(parsedDraft.steps || [emptyStep]);
+      // Les brouillons enregistrés avant l'ajout des trames n'ont pas ce
+      // champ : on les rattache à la trame classique pour ne pas casser
+      // l'expérience des standards déjà en cours de rédaction.
+      setTrame(parsedDraft.trame || "classique");
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ standard, steps }));
+    if (!trame) return;
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ trame, standard, steps })
+    );
     setSavedMessage("Brouillon sauvegardé automatiquement");
 
     const timer = setTimeout(() => setSavedMessage(""), 1500);
     return () => clearTimeout(timer);
-  }, [standard, steps]);
+  }, [trame, standard, steps]);
+
+  function chooseTrame(key) {
+    setTrame(key);
+  }
+
+  function changeTrame() {
+    if (
+      !confirm(
+        "Changer de trame réinitialise le standard en cours. Continuer ?"
+      )
+    ) {
+      return;
+    }
+    setTrame(null);
+    setStandard(emptyStandard);
+    setSteps([emptyStep]);
+    setShowPreview(false);
+    setAiResult("");
+    localStorage.removeItem(STORAGE_KEY);
+  }
 
   function updateField(field, value) {
     setStandard({ ...standard, [field]: value });
@@ -186,15 +230,23 @@ export default function Editor({ onBack }) {
     }
   }
 
-  const requiredFields = [
-    standard.title,
-    standard.zone,
-    standard.objective,
-    standard.safety,
-    standard.quality,
-    standard.control,
-    ...steps.flatMap((step) => [step.title, step.description]),
-  ];
+  const requiredFields =
+    trame === "instruction_travail"
+      ? [
+          standard.title,
+          standard.zone,
+          standard.owner,
+          ...steps.flatMap((step) => [step.title, step.description]),
+        ]
+      : [
+          standard.title,
+          standard.zone,
+          standard.objective,
+          standard.safety,
+          standard.quality,
+          standard.control,
+          ...steps.flatMap((step) => [step.title, step.description]),
+        ];
 
   const completedFields = requiredFields.filter(
     (field) => field && field.trim() !== ""
@@ -222,36 +274,75 @@ export default function Editor({ onBack }) {
           )}
         </div>
 
-        <div className="print:hidden">
-          <h1 className="text-4xl font-bold text-slate-900">
-            Créer un nouveau standard
-          </h1>
+        {!trame ? (
+          <div className="print:hidden">
+            <h1 className="text-4xl font-bold text-slate-900">
+              Choisis une trame
+            </h1>
 
-          <p className="mt-2 text-slate-600">
-            Structure guidée pour créer un standard simple, clair et exploitable terrain.
-          </p>
-
-          <div className="mt-6 bg-white border rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-slate-900">
-                Complétude du standard
-              </p>
-              <p className="font-bold text-slate-900">{completionScore}%</p>
-            </div>
-
-            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-slate-950 rounded-full"
-                style={{ width: `${completionScore}%` }}
-              />
-            </div>
-
-            <p className="mt-2 text-sm text-slate-500">
-              Objectif : avoir un standard suffisamment clair pour être compris,
-              appliqué et audité sur le terrain.
+            <p className="mt-2 text-slate-600">
+              Le type de trame détermine les informations demandées et la mise
+              en page du standard généré.
             </p>
+
+            <div className="mt-8 grid sm:grid-cols-2 gap-6">
+              {Object.entries(TRAMES).map(([key, info]) => (
+                <button
+                  key={key}
+                  onClick={() => chooseTrame(key)}
+                  className="text-left bg-white border-2 border-transparent hover:border-slate-950 rounded-3xl p-8 shadow-sm transition"
+                >
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {info.label}
+                  </h2>
+                  <p className="mt-3 text-slate-600">{info.description}</p>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="print:hidden">
+              <div className="flex items-center justify-between gap-4">
+                <h1 className="text-4xl font-bold text-slate-900">
+                  Créer un nouveau standard
+                </h1>
+
+                <button
+                  onClick={changeTrame}
+                  className="text-sm text-slate-600 hover:underline whitespace-nowrap"
+                >
+                  ↺ Changer de trame
+                </button>
+              </div>
+
+              <p className="mt-2 text-slate-600">
+                Trame : <strong>{TRAMES[trame].label}</strong> — Structure
+                guidée pour créer un standard simple, clair et exploitable
+                terrain.
+              </p>
+
+              <div className="mt-6 bg-white border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-slate-900">
+                    Complétude du standard
+                  </p>
+                  <p className="font-bold text-slate-900">{completionScore}%</p>
+                </div>
+
+                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-slate-950 rounded-full"
+                    style={{ width: `${completionScore}%` }}
+                  />
+                </div>
+
+                <p className="mt-2 text-sm text-slate-500">
+                  Objectif : avoir un standard suffisamment clair pour être compris,
+                  appliqué et audité sur le terrain.
+                </p>
+              </div>
+            </div>
 
         <div className="mt-8 grid gap-8 print:hidden">
           <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
@@ -269,45 +360,81 @@ export default function Editor({ onBack }) {
 
               <input
                 className="border rounded-xl p-4"
-                placeholder="Zone / poste / ligne"
+                placeholder={
+                  trame === "instruction_travail"
+                    ? "Machine / zone de travail"
+                    : "Zone / poste / ligne"
+                }
                 value={standard.zone}
                 onChange={(e) => updateField("zone", e.target.value)}
               />
 
               <input
                 className="border rounded-xl p-4"
-                placeholder="Responsable / référent"
+                placeholder={
+                  trame === "instruction_travail"
+                    ? "Propriétaire"
+                    : "Responsable / référent"
+                }
                 value={standard.owner}
                 onChange={(e) => updateField("owner", e.target.value)}
               />
 
-              <textarea
-                className="border rounded-xl p-4 min-h-24"
-                placeholder="Objectif du standard"
-                value={standard.objective}
-                onChange={(e) => updateField("objective", e.target.value)}
-              />
+              {trame === "instruction_travail" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date (ex : 20/09/2026)"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
 
-              <textarea
-                className="border rounded-xl p-4 min-h-24"
-                placeholder="Points sécurité importants"
-                value={standard.safety}
-                onChange={(e) => updateField("safety", e.target.value)}
-              />
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Référence document (ex : I-END-Gestion-lèves-fûts-R0)"
+                    value={standard.reference}
+                    onChange={(e) =>
+                      updateField("reference", e.target.value)
+                    }
+                  />
+                </>
+              )}
 
-              <textarea
-                className="border rounded-xl p-4 min-h-24"
-                placeholder="Points qualité importants"
-                value={standard.quality}
-                onChange={(e) => updateField("quality", e.target.value)}
-              />
+              {trame === "classique" && (
+                <>
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Objectif du standard"
+                    value={standard.objective}
+                    onChange={(e) =>
+                      updateField("objective", e.target.value)
+                    }
+                  />
 
-              <textarea
-                className="border rounded-xl p-4 min-h-24"
-                placeholder="Matériel / outillage / documents nécessaires"
-                value={standard.materials}
-                onChange={(e) => updateField("materials", e.target.value)}
-              />
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Points sécurité importants"
+                    value={standard.safety}
+                    onChange={(e) => updateField("safety", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Points qualité importants"
+                    value={standard.quality}
+                    onChange={(e) => updateField("quality", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Matériel / outillage / documents nécessaires"
+                    value={standard.materials}
+                    onChange={(e) =>
+                      updateField("materials", e.target.value)
+                    }
+                  />
+                </>
+              )}
             </div>
           </section>
 
@@ -347,7 +474,11 @@ export default function Editor({ onBack }) {
                   <div className="grid gap-4">
                     <input
                       className="border rounded-xl p-4"
-                      placeholder="Nom de l’étape"
+                      placeholder={
+                        trame === "instruction_travail"
+                          ? "Opération"
+                          : "Nom de l’étape"
+                      }
                       value={step.title}
                       onChange={(e) =>
                         updateStep(step.id, "title", e.target.value)
@@ -356,7 +487,11 @@ export default function Editor({ onBack }) {
 
                     <textarea
                       className="border rounded-xl p-4 min-h-24"
-                      placeholder="Description précise de l’étape"
+                      placeholder={
+                        trame === "instruction_travail"
+                          ? "Description détaillée de l’opération"
+                          : "Description précise de l’étape"
+                      }
                       value={step.description}
                       onChange={(e) =>
                         updateStep(step.id, "description", e.target.value)
@@ -383,41 +518,58 @@ export default function Editor({ onBack }) {
 
                     <input
                       className="border rounded-xl p-4"
-                      placeholder="Temps estimé"
+                      placeholder={
+                        trame === "instruction_travail"
+                          ? "Temps (en minutes)"
+                          : "Temps estimé"
+                      }
                       value={step.duration}
                       onChange={(e) =>
                         updateStep(step.id, "duration", e.target.value)
                       }
                     />
 
-                    <div className="grid sm:grid-cols-3 gap-4 mt-2">
-                      <PhotoUpload
-                        title="Photo terrain"
-                        preview={step.preview}
-                        onChange={(file) =>
-                          updatePhoto(step.id, "preview", file)
-                        }
-                        onRemove={() => removePhoto(step.id, "preview")}
-                      />
+                    {trame === "instruction_travail" ? (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Illustration"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Photo terrain"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
 
-                      <PhotoUpload
-                        title="Photo OK"
-                        preview={step.okPreview}
-                        onChange={(file) =>
-                          updatePhoto(step.id, "okPreview", file)
-                        }
-                        onRemove={() => removePhoto(step.id, "okPreview")}
-                      />
+                        <PhotoUpload
+                          title="Photo OK"
+                          preview={step.okPreview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "okPreview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "okPreview")}
+                        />
 
-                      <PhotoUpload
-                        title="Photo NOK"
-                        preview={step.nokPreview}
-                        onChange={(file) =>
-                          updatePhoto(step.id, "nokPreview", file)
-                        }
-                        onRemove={() => removePhoto(step.id, "nokPreview")}
-                      />
-                    </div>
+                        <PhotoUpload
+                          title="Photo NOK"
+                          preview={step.nokPreview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "nokPreview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "nokPreview")}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -425,23 +577,27 @@ export default function Editor({ onBack }) {
           </section>
 
           <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">
-              Validation terrain
-            </h2>
+            {trame === "classique" && (
+              <>
+                <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                  Validation terrain
+                </h2>
 
-            <textarea
-              className="border rounded-xl p-4 min-h-28 w-full"
-              placeholder="Points de contrôle / critères d’acceptation / erreurs à éviter"
-              value={standard.control}
-              onChange={(e) => updateField("control", e.target.value)}
-            />
+                <textarea
+                  className="border rounded-xl p-4 min-h-28 w-full"
+                  placeholder="Points de contrôle / critères d’acceptation / erreurs à éviter"
+                  value={standard.control}
+                  onChange={(e) => updateField("control", e.target.value)}
+                />
+              </>
+            )}
 
             <div className="mt-6 flex flex-wrap gap-4">
               <button
                 onClick={generateStandard}
                 className="px-6 py-4 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
               >
-                Générer la trame du standard
+                Générer l’aperçu du standard
               </button>
 
               <button
@@ -536,6 +692,131 @@ export default function Editor({ onBack }) {
               </div>
             </div>
 
+            {trame === "instruction_travail" ? (
+              <div
+                id="standard-print"
+                className="border rounded-2xl overflow-hidden print:border-none"
+              >
+                <table
+                  className="w-full border-collapse"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "56%" }} />
+                    <col style={{ width: "22%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td
+                        rowSpan={2}
+                        className="border p-4 align-top text-sm"
+                      >
+                        <p>
+                          <strong>Propriétaire :</strong>{" "}
+                          {standard.owner || "Non renseigné"}
+                        </p>
+                        <p className="mt-2">
+                          <strong>Date :</strong>{" "}
+                          {standard.date || "Non renseignée"}
+                        </p>
+                      </td>
+                      <td
+                        rowSpan={2}
+                        className="border p-6 bg-slate-200 print:bg-slate-200 text-center align-middle"
+                      >
+                        <h3 className="text-2xl font-black text-slate-900">
+                          {standard.title || "Titre du standard"}
+                        </h3>
+                      </td>
+                      <td className="border p-3 align-top text-sm">
+                        <strong>Machine / Zone de travail</strong>
+                        <br />
+                        {standard.zone || "Non renseignée"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border p-3 align-top text-sm">
+                        <strong>Réf</strong>
+                        <br />
+                        {standard.reference || "Non renseignée"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table
+                  className="w-full border-collapse text-sm"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "40%" }} />
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "15%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-100 text-left">
+                      <th className="border p-3">No.</th>
+                      <th className="border p-3">Opération</th>
+                      <th className="border p-3">
+                        Description détaillée de l’opération
+                      </th>
+                      <th className="border p-3">Illustrations</th>
+                      <th className="border p-3">Temps (en mn)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {steps.map((step, index) => (
+                      <tr
+                        key={step.id}
+                        className="align-top break-inside-avoid"
+                      >
+                        <td className="border p-3 text-center font-black">
+                          {index + 1}
+                        </td>
+                        <td className="border p-3 font-semibold">
+                          {step.title || "Opération non renseignée"}
+                        </td>
+                        <td className="border p-3">
+                          <p className="whitespace-pre-line">
+                            {step.description || "Description non renseignée"}
+                          </p>
+                          {step.safety && (
+                            <p className="mt-2 text-red-700">
+                              <strong>✦ Sécurité :</strong> {step.safety}
+                            </p>
+                          )}
+                          {step.quality && (
+                            <p className="mt-2 text-blue-700">
+                              <strong>♦ Qualité :</strong> {step.quality}
+                            </p>
+                          )}
+                        </td>
+                        <td className="border p-2 align-top">
+                          {step.preview && (
+                            <img
+                              src={step.preview}
+                              alt=""
+                              className="w-full h-44 object-cover rounded-lg border"
+                            />
+                          )}
+                        </td>
+                        <td className="border p-3 text-center">
+                          {step.duration || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="text-xs text-slate-500 border-t p-4">
+                  Document généré avec Smart Standard — brouillon de standard
+                  opérationnel.
+                </div>
+              </div>
+            ) : (
             <div id="standard-print" className="border rounded-2xl overflow-hidden print:border-none">
               <div className="bg-slate-950 text-white p-6 print:bg-white print:text-black print:border-b">
                 <p className="text-sm uppercase tracking-wide print:text-slate-600">
@@ -714,7 +995,10 @@ export default function Editor({ onBack }) {
                 </div>
               </div>
             </div>
+            )}
           </section>
+        )}
+          </>
         )}
       </div>
     </div>
