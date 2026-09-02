@@ -25,7 +25,7 @@ const TRAMES = {
   mode_operatoire: {
     label: "Standard mode opératoire",
     description:
-      "Croquis et photo en tête de document, puis séquence d’opérations en deux opérateurs (A / B) avec points EHS et Qualité mis en évidence.",
+      "Croquis et photo en tête de document, puis séquence d’opérations réparties entre plusieurs opérateurs (2, 3 ou plus, paramétrable) avec points EHS et Qualité mis en évidence.",
   },
 };
 
@@ -48,6 +48,7 @@ const emptyStandard = {
   photo: null,
   autres: "",
   accordResponsable: "",
+  operators: ["Opérateur A", "Opérateur B"],
 };
 
 const emptyStep = {
@@ -58,16 +59,36 @@ const emptyStep = {
   quality: "",
   duration: "",
   preview: null,
+  preview2: null,
   okPreview: null,
   nokPreview: null,
   conditions: "",
   tooling: "",
   outOfStandard: "",
-  operatorA: false,
-  operatorB: false,
+  operatorFlags: [false, false],
   category: "",
   keyPoints: "",
 };
+
+// Génère un nom d’opérateur par défaut (A, B, C, ... puis A2, B2, ... au-delà de 26).
+function defaultOperatorName(index) {
+  const letter = String.fromCharCode(65 + (index % 26));
+  const suffix = Math.floor(index / 26);
+  return `Opérateur ${letter}${suffix > 0 ? suffix + 1 : ""}`;
+}
+
+// Réduit un nom d’opérateur à un libellé court pour les colonnes étroites du
+// tableau imprimé (ex : "Opérateur A" -> "A", "Opérateur A2" -> "A2",
+// "Régleur" -> "Rég."). Le nom complet reste visible dans la gestion des
+// opérateurs et via le title (survol) de la colonne.
+function shortOperatorLabel(name, index) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return defaultOperatorName(index).replace("Opérateur ", "");
+  const match = trimmed.match(/^Op[ée]rateur\s+(\S+)$/i);
+  if (match) return match[1];
+  if (trimmed.length <= 4) return trimmed;
+  return trimmed.slice(0, 4) + ".";
+}
 
 // Exemples pré-remplis affichés dans la fenêtre "Voir un exemple" du choix
 // de trame, pour donner un aperçu concret de chaque mise en page sans avoir
@@ -84,7 +105,8 @@ const EXAMPLE_DATA = {
       safety: "Consignation électrique obligatoire avant toute intervention.",
       quality: "Vérifier l’alignement du nouveau rouleau au montage.",
       materials: "Clé de 17, chariot élévateur, EPI complets.",
-      control: "Contrôle visuel + test à vide avant remise en production.",
+      control:
+        "Test de production sur 10 pièces sans défaut avant remise en service définitive.",
     },
     steps: [
       {
@@ -102,10 +124,30 @@ const EXAMPLE_DATA = {
         id: 2,
         title: "Démonter le rouleau usé",
         description:
-          "Retirer les fixations et sortir le rouleau à l’aide du chariot.",
+          "Retirer les fixations et sortir le rouleau à l’aide du chariot élévateur.",
         safety: "Ne jamais travailler sous une charge suspendue.",
         quality: "Vérifier l’état de l’axe avant remontage.",
         duration: "15 min",
+      },
+      {
+        ...emptyStep,
+        id: 3,
+        title: "Monter le rouleau neuf",
+        description:
+          "Positionner le rouleau neuf sur l’axe et resserrer les fixations à la clé de 17.",
+        safety: "Garder les mains à l’écart des points de pincement.",
+        quality: "Vérifier l’alignement avant serrage définitif.",
+        duration: "20 min",
+      },
+      {
+        ...emptyStep,
+        id: 4,
+        title: "Déconsigner et tester",
+        description:
+          "Retirer le cadenas, remettre sous tension et lancer un cycle à vide puis en production.",
+        safety: "S’assurer que personne n’intervient sur la machine avant remise sous tension.",
+        quality: "Contrôler les 3 premières pièces produites.",
+        duration: "10 min",
       },
     ],
   },
@@ -188,6 +230,7 @@ const EXAMPLE_DATA = {
       date: "02/09/2026",
       accordResponsable: "Validé - E. Morel",
       autres: "Document conforme ISO 9001.",
+      operators: ["Opérateur A", "Opérateur B", "Opérateur C"],
     },
     steps: [
       {
@@ -195,8 +238,7 @@ const EXAMPLE_DATA = {
         id: 1,
         title: "Opérateur A",
         description: "Arrêter la ligne et verrouiller.",
-        operatorA: true,
-        operatorB: false,
+        operatorFlags: [true, false, false],
         category: "ehs",
         keyPoints: "Attendre l’arrêt complet avant intervention.",
       },
@@ -205,10 +247,18 @@ const EXAMPLE_DATA = {
         id: 2,
         title: "Opérateur B",
         description: "Contrôler le diamètre de la nouvelle bobine.",
-        operatorA: false,
-        operatorB: true,
+        operatorFlags: [false, true, false],
         category: "quality",
         keyPoints: "Diamètre attendu : 800 mm +/- 5 mm.",
+      },
+      {
+        ...emptyStep,
+        id: 3,
+        title: "Opérateurs A + C",
+        description: "Positionner et fixer la nouvelle bobine sur le mandrin à deux.",
+        operatorFlags: [true, false, true],
+        category: "",
+        keyPoints: "Coordonner le levage pour éviter tout pincement.",
       },
     ],
   },
@@ -292,17 +342,64 @@ export default function Editor({ onBack }) {
         quality: "",
         duration: "",
         preview: null,
+        preview2: null,
         okPreview: null,
         nokPreview: null,
         conditions: "",
         tooling: "",
         outOfStandard: "",
-        operatorA: false,
-        operatorB: false,
+        operatorFlags: Array((standard.operators || []).length).fill(false),
         category: "",
         keyPoints: "",
       },
     ]);
+  }
+
+  function addOperator() {
+    const nextIndex = standard.operators.length;
+    const nextOperators = [
+      ...standard.operators,
+      defaultOperatorName(nextIndex),
+    ];
+    setStandard({ ...standard, operators: nextOperators });
+    setSteps(
+      steps.map((step) => ({
+        ...step,
+        operatorFlags: [...(step.operatorFlags || []), false],
+      }))
+    );
+  }
+
+  function removeOperator(index) {
+    if (standard.operators.length <= 1) return;
+    const nextOperators = standard.operators.filter((_, i) => i !== index);
+    setStandard({ ...standard, operators: nextOperators });
+    setSteps(
+      steps.map((step) => ({
+        ...step,
+        operatorFlags: (step.operatorFlags || []).filter(
+          (_, i) => i !== index
+        ),
+      }))
+    );
+  }
+
+  function renameOperator(index, name) {
+    const nextOperators = standard.operators.map((op, i) =>
+      i === index ? name : op
+    );
+    setStandard({ ...standard, operators: nextOperators });
+  }
+
+  function toggleStepOperator(id, index) {
+    setSteps(
+      steps.map((step) => {
+        if (step.id !== id) return step;
+        const flags = [...(step.operatorFlags || [])];
+        flags[index] = !flags[index];
+        return { ...step, operatorFlags: flags };
+      })
+    );
   }
 
   async function updateStandardPhoto(field, file) {
@@ -653,21 +750,30 @@ export default function Editor({ onBack }) {
                   </tbody>
                 </table>
 
-                <div className="flex gap-2 p-3 border-b">
-                  {steps.some((step) => step.preview) ? (
+                <div className="flex gap-2 p-3 border-b flex-wrap">
+                  {steps.some((step) => step.preview || step.preview2) ? (
                     steps
                       .map((step, i) => ({ step, num: i + 1 }))
-                      .filter(({ step }) => step.preview)
+                      .filter(({ step }) => step.preview || step.preview2)
                       .map(({ step, num }) => (
                         <div
                           key={step.id}
-                          className="relative flex-1 h-40 min-w-0"
+                          className="relative flex-1 h-40 min-w-0 flex gap-1"
                         >
-                          <img
-                            src={step.preview}
-                            alt=""
-                            className="w-full h-full object-cover rounded border"
-                          />
+                          {step.preview && (
+                            <img
+                              src={step.preview}
+                              alt=""
+                              className="w-full h-full object-cover rounded border"
+                            />
+                          )}
+                          {step.preview2 && (
+                            <img
+                              src={step.preview2}
+                              alt=""
+                              className="w-full h-full object-cover rounded border"
+                            />
+                          )}
                           <span className="absolute top-1 left-1 bg-sky-500 text-white text-xs font-bold w-6 h-6 rounded flex items-center justify-center">
                             {num}
                           </span>
@@ -837,63 +943,85 @@ export default function Editor({ onBack }) {
                   </tbody>
                 </table>
 
-                <table
-                  className="w-full border-collapse text-sm"
-                  style={{ tableLayout: "fixed" }}
-                >
-                  <colgroup>
-                    <col style={{ width: "4%" }} />
-                    <col style={{ width: "4%" }} />
-                    <col style={{ width: "14%" }} />
-                    <col style={{ width: "46%" }} />
-                    <col style={{ width: "32%" }} />
-                  </colgroup>
-                  <thead>
-                    <tr className="bg-slate-100 text-left">
-                      <th className="border p-2 text-center">A</th>
-                      <th className="border p-2 text-center">B</th>
-                      <th className="border p-2">Qui</th>
-                      <th className="border p-2">Comment</th>
-                      <th className="border p-2">Points clés</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {steps.map((step) => (
-                      <tr
-                        key={step.id}
-                        className="align-top break-inside-avoid"
-                      >
-                        <td className="border p-2 text-center font-black">
-                          {step.operatorA ? "✓" : ""}
-                        </td>
-                        <td className="border p-2 text-center font-black">
-                          {step.operatorB ? "✓" : ""}
-                        </td>
-                        <td className="border p-2 font-semibold">
-                          {step.title || "—"}
-                        </td>
-                        <td
-                          className={`border p-2 ${
-                            step.category === "ehs"
-                              ? "bg-amber-100 print:bg-amber-100"
-                              : step.category === "quality"
-                              ? "bg-red-100 print:bg-red-100"
-                              : ""
-                          }`}
-                        >
-                          <p className="whitespace-pre-line">
-                            {step.description || "—"}
-                          </p>
-                        </td>
-                        <td className="border p-2">
-                          <p className="whitespace-pre-line">
-                            {step.keyPoints || "—"}
-                          </p>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {(() => {
+                  const operators =
+                    standard.operators && standard.operators.length
+                      ? standard.operators
+                      : ["A", "B"];
+                  const operatorsWidth = Math.min(40, 8 * operators.length);
+                  const scale = (100 - operatorsWidth) / 92;
+                  const operatorColWidth = operatorsWidth / operators.length;
+
+                  return (
+                    <table
+                      className="w-full border-collapse text-sm"
+                      style={{ tableLayout: "fixed" }}
+                    >
+                      <colgroup>
+                        {operators.map((_, i) => (
+                          <col key={i} style={{ width: `${operatorColWidth}%` }} />
+                        ))}
+                        <col style={{ width: `${14 * scale}%` }} />
+                        <col style={{ width: `${46 * scale}%` }} />
+                        <col style={{ width: `${32 * scale}%` }} />
+                      </colgroup>
+                      <thead>
+                        <tr className="bg-slate-100 text-left">
+                          {operators.map((name, i) => (
+                            <th
+                              key={i}
+                              className="border p-1 text-center text-xs leading-tight"
+                              title={name || defaultOperatorName(i)}
+                            >
+                              {shortOperatorLabel(name, i)}
+                            </th>
+                          ))}
+                          <th className="border p-2">Qui</th>
+                          <th className="border p-2">Comment</th>
+                          <th className="border p-2">Points clés</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {steps.map((step) => (
+                          <tr
+                            key={step.id}
+                            className="align-top break-inside-avoid"
+                          >
+                            {operators.map((_, i) => (
+                              <td
+                                key={i}
+                                className="border p-2 text-center font-black"
+                              >
+                                {step.operatorFlags?.[i] ? "✓" : ""}
+                              </td>
+                            ))}
+                            <td className="border p-2 font-semibold">
+                              {step.title || "—"}
+                            </td>
+                            <td
+                              className={`border p-2 ${
+                                step.category === "ehs"
+                                  ? "bg-amber-100 print:bg-amber-100"
+                                  : step.category === "quality"
+                                  ? "bg-red-100 print:bg-red-100"
+                                  : ""
+                              }`}
+                            >
+                              <p className="whitespace-pre-line">
+                                {step.description || "—"}
+                              </p>
+                            </td>
+                            <td className="border p-2">
+                              <p className="whitespace-pre-line">
+                                {step.keyPoints || "—"}
+                              </p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
 
                 {standard.autres && (
                   <div className="border-t p-3 text-sm">
@@ -1370,6 +1498,47 @@ export default function Editor({ onBack }) {
                     onChange={(e) => updateField("autres", e.target.value)}
                   />
 
+                  <div className="border rounded-xl p-4 bg-white sm:col-span-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-semibold text-slate-900">
+                        Opérateurs impliqués
+                      </p>
+                      <button
+                        type="button"
+                        onClick={addOperator}
+                        className="text-sm px-3 py-1.5 rounded-lg bg-slate-950 text-white hover:bg-slate-800"
+                      >
+                        + Ajouter un opérateur
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      {standard.operators.map((name, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 border rounded-xl px-3 py-2"
+                        >
+                          <input
+                            className="border-none outline-none text-sm w-32"
+                            value={name}
+                            onChange={(e) =>
+                              renameOperator(index, e.target.value)
+                            }
+                          />
+                          {standard.operators.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeOperator(index)}
+                              className="text-red-600 text-sm hover:underline"
+                            >
+                              Supprimer
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid sm:grid-cols-2 gap-4 mt-2">
                     <PhotoUpload
                       title="Croquis / Schéma"
@@ -1532,36 +1701,22 @@ export default function Editor({ onBack }) {
 
                     {trame === "mode_operatoire" && (
                       <>
-                        <div className="flex gap-6 items-center bg-white border rounded-xl p-4">
-                          <label className="flex items-center gap-2 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={step.operatorA}
-                              onChange={(e) =>
-                                updateStep(
-                                  step.id,
-                                  "operatorA",
-                                  e.target.checked
-                                )
-                              }
-                            />
-                            Opérateur A
-                          </label>
-
-                          <label className="flex items-center gap-2 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={step.operatorB}
-                              onChange={(e) =>
-                                updateStep(
-                                  step.id,
-                                  "operatorB",
-                                  e.target.checked
-                                )
-                              }
-                            />
-                            Opérateur B
-                          </label>
+                        <div className="flex flex-wrap gap-6 items-center bg-white border rounded-xl p-4">
+                          {standard.operators.map((name, index) => (
+                            <label
+                              key={index}
+                              className="flex items-center gap-2 font-medium"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!step.operatorFlags?.[index]}
+                                onChange={() =>
+                                  toggleStepOperator(step.id, index)
+                                }
+                              />
+                              {name || defaultOperatorName(index)}
+                            </label>
+                          ))}
                         </div>
 
                         <select
@@ -1666,6 +1821,15 @@ export default function Editor({ onBack }) {
                             updatePhoto(step.id, "preview", file)
                           }
                           onRemove={() => removePhoto(step.id, "preview")}
+                        />
+
+                        <PhotoUpload
+                          title="Photo repère (2)"
+                          preview={step.preview2}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview2", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview2")}
                         />
                       </div>
                     ) : trame === "mode_operatoire" ? null : (
