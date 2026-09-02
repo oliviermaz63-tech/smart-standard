@@ -22,6 +22,11 @@ const TRAMES = {
     description:
       "Fiche de nettoyage par élément avec bandeau de photos repères numérotées, conditions machine et action si hors standard.",
   },
+  mode_operatoire: {
+    label: "Standard mode opératoire",
+    description:
+      "Croquis et photo en tête de document, puis séquence d’opérations en deux opérateurs (A / B) avec points EHS et Qualité mis en évidence.",
+  },
 };
 
 const emptyStandard = {
@@ -39,6 +44,10 @@ const emptyStandard = {
   equipements: "",
   periodicite: "",
   dateModif: "",
+  sketch: null,
+  photo: null,
+  autres: "",
+  accordResponsable: "",
 };
 
 const emptyStep = {
@@ -54,6 +63,10 @@ const emptyStep = {
   conditions: "",
   tooling: "",
   outOfStandard: "",
+  operatorA: false,
+  operatorB: false,
+  category: "",
+  keyPoints: "",
 };
 
 export default function Editor({ onBack }) {
@@ -138,8 +151,28 @@ export default function Editor({ onBack }) {
         conditions: "",
         tooling: "",
         outOfStandard: "",
+        operatorA: false,
+        operatorB: false,
+        category: "",
+        keyPoints: "",
       },
     ]);
+  }
+
+  async function updateStandardPhoto(field, file) {
+    if (!file) return;
+
+    try {
+      const compressed = await compressImage(file);
+      setStandard((current) => ({ ...current, [field]: compressed }));
+    } catch (error) {
+      console.error("Erreur compression photo :", error);
+      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+    }
+  }
+
+  function removeStandardPhoto(field) {
+    setStandard((current) => ({ ...current, [field]: null }));
   }
 
   async function updatePhoto(id, field, file) {
@@ -259,6 +292,13 @@ export default function Editor({ onBack }) {
           standard.zone,
           standard.equipements,
           standard.owner,
+          ...steps.flatMap((step) => [step.title, step.description]),
+        ]
+      : trame === "mode_operatoire"
+      ? [
+          standard.title,
+          standard.owner,
+          standard.date,
           ...steps.flatMap((step) => [step.title, step.description]),
         ]
       : [
@@ -399,6 +439,8 @@ export default function Editor({ onBack }) {
                     ? "Machine / zone de travail"
                     : trame === "gamme_nettoyage"
                     ? "Zone (ex : SFA 36)"
+                    : trame === "mode_operatoire"
+                    ? "Lieu / ligne / poste"
                     : "Zone / poste / ligne"
                 }
                 value={standard.zone}
@@ -423,6 +465,8 @@ export default function Editor({ onBack }) {
                     ? "Propriétaire"
                     : trame === "gamme_nettoyage"
                     ? "Resp"
+                    : trame === "mode_operatoire"
+                    ? "Rédacteur"
                     : "Responsable / référent"
                 }
                 value={standard.owner}
@@ -501,6 +545,51 @@ export default function Editor({ onBack }) {
                 </>
               )}
 
+              {trame === "mode_operatoire" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Accord du responsable pour implémentation"
+                    value={standard.accordResponsable}
+                    onChange={(e) =>
+                      updateField("accordResponsable", e.target.value)
+                    }
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Autres (prérequis, codification, etc.)"
+                    value={standard.autres}
+                    onChange={(e) => updateField("autres", e.target.value)}
+                  />
+
+                  <div className="grid sm:grid-cols-2 gap-4 mt-2">
+                    <PhotoUpload
+                      title="Croquis / Schéma"
+                      preview={standard.sketch}
+                      onChange={(file) =>
+                        updateStandardPhoto("sketch", file)
+                      }
+                      onRemove={() => removeStandardPhoto("sketch")}
+                    />
+
+                    <PhotoUpload
+                      title="Photo"
+                      preview={standard.photo}
+                      onChange={(file) => updateStandardPhoto("photo", file)}
+                      onRemove={() => removeStandardPhoto("photo")}
+                    />
+                  </div>
+                </>
+              )}
+
               {trame === "classique" && (
                 <>
                   <textarea
@@ -544,6 +633,8 @@ export default function Editor({ onBack }) {
               <h2 className="text-2xl font-bold text-slate-900">
                 {trame === "gamme_nettoyage"
                   ? "Éléments à nettoyer"
+                  : trame === "mode_operatoire"
+                  ? "Séquence d’opérations"
                   : "Étapes du standard"}
               </h2>
 
@@ -553,6 +644,8 @@ export default function Editor({ onBack }) {
               >
                 {trame === "gamme_nettoyage"
                   ? "+ Ajouter un élément"
+                  : trame === "mode_operatoire"
+                  ? "+ Ajouter une opération"
                   : "+ Ajouter une étape"}
               </button>
             </div>
@@ -567,6 +660,8 @@ export default function Editor({ onBack }) {
                     <h3 className="text-xl font-semibold">
                       {trame === "gamme_nettoyage"
                         ? `Élément ${index + 1}`
+                        : trame === "mode_operatoire"
+                        ? `Opération ${index + 1}`
                         : `Étape ${index + 1}`}
                     </h3>
 
@@ -586,6 +681,8 @@ export default function Editor({ onBack }) {
                           ? "Opération"
                           : trame === "gamme_nettoyage"
                           ? "Elements (ex : Barrettes)"
+                          : trame === "mode_operatoire"
+                          ? "Qui (opérateur / rôle)"
                           : "Nom de l’étape"
                       }
                       value={step.title}
@@ -601,6 +698,8 @@ export default function Editor({ onBack }) {
                           ? "Description détaillée de l’opération"
                           : trame === "gamme_nettoyage"
                           ? "Etat standard de propreté attendu"
+                          : trame === "mode_operatoire"
+                          ? "Comment (verbe d’action, détail de l’opération)"
                           : "Description précise de l’étape"
                       }
                       value={step.description}
@@ -609,7 +708,7 @@ export default function Editor({ onBack }) {
                       }
                     />
 
-                    {trame !== "gamme_nettoyage" && (
+                    {trame !== "gamme_nettoyage" && trame !== "mode_operatoire" && (
                       <>
                         <input
                           className="border rounded-xl p-4"
@@ -626,6 +725,65 @@ export default function Editor({ onBack }) {
                           value={step.quality}
                           onChange={(e) =>
                             updateStep(step.id, "quality", e.target.value)
+                          }
+                        />
+                      </>
+                    )}
+
+                    {trame === "mode_operatoire" && (
+                      <>
+                        <div className="flex gap-6 items-center bg-white border rounded-xl p-4">
+                          <label className="flex items-center gap-2 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={step.operatorA}
+                              onChange={(e) =>
+                                updateStep(
+                                  step.id,
+                                  "operatorA",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                            Opérateur A
+                          </label>
+
+                          <label className="flex items-center gap-2 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={step.operatorB}
+                              onChange={(e) =>
+                                updateStep(
+                                  step.id,
+                                  "operatorB",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                            Opérateur B
+                          </label>
+                        </div>
+
+                        <select
+                          className="border rounded-xl p-4 bg-white"
+                          value={step.category}
+                          onChange={(e) =>
+                            updateStep(step.id, "category", e.target.value)
+                          }
+                        >
+                          <option value="">Type de point (normal)</option>
+                          <option value="ehs">EHS (mise en évidence jaune)</option>
+                          <option value="quality">
+                            Qualité (mise en évidence rouge)
+                          </option>
+                        </select>
+
+                        <textarea
+                          className="border rounded-xl p-4 min-h-24"
+                          placeholder="Points clés (détail pour ne pas faire d’erreur)"
+                          value={step.keyPoints}
+                          onChange={(e) =>
+                            updateStep(step.id, "keyPoints", e.target.value)
                           }
                         />
                       </>
@@ -671,20 +829,22 @@ export default function Editor({ onBack }) {
                       </>
                     )}
 
-                    <input
-                      className="border rounded-xl p-4"
-                      placeholder={
-                        trame === "instruction_travail"
-                          ? "Temps (en minutes)"
-                          : trame === "gamme_nettoyage"
-                          ? "Durée (ex : 5 min)"
-                          : "Temps estimé"
-                      }
-                      value={step.duration}
-                      onChange={(e) =>
-                        updateStep(step.id, "duration", e.target.value)
-                      }
-                    />
+                    {trame !== "mode_operatoire" && (
+                      <input
+                        className="border rounded-xl p-4"
+                        placeholder={
+                          trame === "instruction_travail"
+                            ? "Temps (en minutes)"
+                            : trame === "gamme_nettoyage"
+                            ? "Durée (ex : 5 min)"
+                            : "Temps estimé"
+                        }
+                        value={step.duration}
+                        onChange={(e) =>
+                          updateStep(step.id, "duration", e.target.value)
+                        }
+                      />
+                    )}
 
                     {trame === "instruction_travail" ? (
                       <div className="grid sm:grid-cols-3 gap-4 mt-2">
@@ -708,7 +868,7 @@ export default function Editor({ onBack }) {
                           onRemove={() => removePhoto(step.id, "preview")}
                         />
                       </div>
-                    ) : (
+                    ) : trame === "mode_operatoire" ? null : (
                       <div className="grid sm:grid-cols-3 gap-4 mt-2">
                         <PhotoUpload
                           title="Photo terrain"
@@ -1166,6 +1326,154 @@ export default function Editor({ onBack }) {
                   l’Arrêt · M = en Marche sans produire · P = en marche et en
                   Production
                 </div>
+
+                <div className="text-xs text-slate-500 border-t p-4">
+                  Document généré avec Smart Standard — brouillon de standard
+                  opérationnel.
+                </div>
+              </div>
+            ) : trame === "mode_operatoire" ? (
+              <div
+                id="standard-print"
+                className="border rounded-2xl overflow-hidden print:border-none"
+              >
+                <div className="bg-slate-200 print:bg-slate-200 text-center py-4 border-b">
+                  <h3 className="text-2xl font-black text-slate-900">
+                    {standard.title || "Titre du standard"}
+                  </h3>
+                </div>
+
+                <table
+                  className="w-full border-collapse"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "50%" }} />
+                    <col style={{ width: "50%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="border p-2 align-top">
+                        <p className="text-xs font-bold text-slate-500 mb-2 text-center uppercase tracking-wide">
+                          Croquis / Schéma
+                        </p>
+                        {standard.sketch ? (
+                          <img
+                            src={standard.sketch}
+                            alt=""
+                            className="w-full h-48 object-contain"
+                          />
+                        ) : (
+                          <p className="text-sm text-slate-400 italic text-center mt-16">
+                            Aucun croquis
+                          </p>
+                        )}
+                      </td>
+                      <td className="border p-2 align-top">
+                        <p className="text-xs font-bold text-slate-500 mb-2 text-center uppercase tracking-wide">
+                          Photo
+                        </p>
+                        {standard.photo ? (
+                          <img
+                            src={standard.photo}
+                            alt=""
+                            className="w-full h-48 object-contain"
+                          />
+                        ) : (
+                          <p className="text-sm text-slate-400 italic text-center mt-16">
+                            Aucune photo
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table
+                  className="w-full border-collapse text-sm"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "4%" }} />
+                    <col style={{ width: "4%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "46%" }} />
+                    <col style={{ width: "32%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-100 text-left">
+                      <th className="border p-2 text-center">A</th>
+                      <th className="border p-2 text-center">B</th>
+                      <th className="border p-2">Qui</th>
+                      <th className="border p-2">Comment</th>
+                      <th className="border p-2">Points clés</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {steps.map((step) => (
+                      <tr
+                        key={step.id}
+                        className="align-top break-inside-avoid"
+                      >
+                        <td className="border p-2 text-center font-black">
+                          {step.operatorA ? "✓" : ""}
+                        </td>
+                        <td className="border p-2 text-center font-black">
+                          {step.operatorB ? "✓" : ""}
+                        </td>
+                        <td className="border p-2 font-semibold">
+                          {step.title || "—"}
+                        </td>
+                        <td
+                          className={`border p-2 ${
+                            step.category === "ehs"
+                              ? "bg-amber-100 print:bg-amber-100"
+                              : step.category === "quality"
+                              ? "bg-red-100 print:bg-red-100"
+                              : ""
+                          }`}
+                        >
+                          <p className="whitespace-pre-line">
+                            {step.description || "—"}
+                          </p>
+                        </td>
+                        <td className="border p-2">
+                          <p className="whitespace-pre-line">
+                            {step.keyPoints || "—"}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {standard.autres && (
+                  <div className="border-t p-3 text-sm">
+                    <strong>Autres :</strong> {standard.autres}
+                  </div>
+                )}
+
+                <table className="w-full border-collapse text-sm border-t">
+                  <colgroup>
+                    <col style={{ width: "33%" }} />
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "47%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="border p-2">
+                        <strong>Rédacteur :</strong> {standard.owner || "—"}
+                      </td>
+                      <td className="border p-2">
+                        <strong>Date :</strong> {standard.date || "—"}
+                      </td>
+                      <td className="border p-2">
+                        <strong>Accord du responsable :</strong>{" "}
+                        {standard.accordResponsable || "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
 
                 <div className="text-xs text-slate-500 border-t p-4">
                   Document généré avec Smart Standard — brouillon de standard
