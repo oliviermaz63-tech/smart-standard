@@ -17,6 +17,11 @@ const TRAMES = {
     description:
       "Format compact type fiche de poste : un tableau avec opération, description, une illustration et un temps par étape.",
   },
+  gamme_nettoyage: {
+    label: "Gamme de nettoyage",
+    description:
+      "Fiche de nettoyage par élément avec bandeau de photos repères numérotées, conditions machine et action si hors standard.",
+  },
 };
 
 const emptyStandard = {
@@ -30,6 +35,10 @@ const emptyStandard = {
   quality: "",
   materials: "",
   control: "",
+  unite: "",
+  equipements: "",
+  periodicite: "",
+  dateModif: "",
 };
 
 const emptyStep = {
@@ -42,6 +51,9 @@ const emptyStep = {
   preview: null,
   okPreview: null,
   nokPreview: null,
+  conditions: "",
+  tooling: "",
+  outOfStandard: "",
 };
 
 export default function Editor({ onBack }) {
@@ -123,6 +135,9 @@ export default function Editor({ onBack }) {
         preview: null,
         okPreview: null,
         nokPreview: null,
+        conditions: "",
+        tooling: "",
+        outOfStandard: "",
       },
     ]);
   }
@@ -235,6 +250,14 @@ export default function Editor({ onBack }) {
       ? [
           standard.title,
           standard.zone,
+          standard.owner,
+          ...steps.flatMap((step) => [step.title, step.description]),
+        ]
+      : trame === "gamme_nettoyage"
+      ? [
+          standard.unite,
+          standard.zone,
+          standard.equipements,
           standard.owner,
           ...steps.flatMap((step) => [step.title, step.description]),
         ]
@@ -351,29 +374,55 @@ export default function Editor({ onBack }) {
             </h2>
 
             <div className="grid gap-5">
-              <input
-                className="border rounded-xl p-4"
-                placeholder="Titre du standard"
-                value={standard.title}
-                onChange={(e) => updateField("title", e.target.value)}
-              />
+              {trame !== "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Titre du standard"
+                  value={standard.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                />
+              )}
+
+              {trame === "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Unité (ex : Sainte Foy l’Argentière)"
+                  value={standard.unite}
+                  onChange={(e) => updateField("unite", e.target.value)}
+                />
+              )}
 
               <input
                 className="border rounded-xl p-4"
                 placeholder={
                   trame === "instruction_travail"
                     ? "Machine / zone de travail"
+                    : trame === "gamme_nettoyage"
+                    ? "Zone (ex : SFA 36)"
                     : "Zone / poste / ligne"
                 }
                 value={standard.zone}
                 onChange={(e) => updateField("zone", e.target.value)}
               />
 
+              {trame === "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Equipements (ex : Presse)"
+                  value={standard.equipements}
+                  onChange={(e) =>
+                    updateField("equipements", e.target.value)
+                  }
+                />
+              )}
+
               <input
                 className="border rounded-xl p-4"
                 placeholder={
                   trame === "instruction_travail"
                     ? "Propriétaire"
+                    : trame === "gamme_nettoyage"
+                    ? "Resp"
                     : "Responsable / référent"
                 }
                 value={standard.owner}
@@ -396,6 +445,58 @@ export default function Editor({ onBack }) {
                     onChange={(e) =>
                       updateField("reference", e.target.value)
                     }
+                  />
+                </>
+              )}
+
+              {trame === "gamme_nettoyage" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Périodicité (ex : Chaque arrêt)"
+                    value={standard.periodicite}
+                    onChange={(e) =>
+                      updateField("periodicite", e.target.value)
+                    }
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date de création"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date de modification"
+                    value={standard.dateModif}
+                    onChange={(e) =>
+                      updateField("dateModif", e.target.value)
+                    }
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Référence document (ex : xxxxx)"
+                    value={standard.reference}
+                    onChange={(e) =>
+                      updateField("reference", e.target.value)
+                    }
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Consigne sécurité (bandeau)"
+                    value={standard.safety}
+                    onChange={(e) => updateField("safety", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Consigne qualité (bandeau)"
+                    value={standard.quality}
+                    onChange={(e) => updateField("quality", e.target.value)}
                   />
                 </>
               )}
@@ -441,14 +542,18 @@ export default function Editor({ onBack }) {
           <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-slate-900">
-                Étapes du standard
+                {trame === "gamme_nettoyage"
+                  ? "Éléments à nettoyer"
+                  : "Étapes du standard"}
               </h2>
 
               <button
                 onClick={addStep}
                 className="px-5 py-3 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
               >
-                + Ajouter une étape
+                {trame === "gamme_nettoyage"
+                  ? "+ Ajouter un élément"
+                  : "+ Ajouter une étape"}
               </button>
             </div>
 
@@ -460,7 +565,9 @@ export default function Editor({ onBack }) {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold">
-                      Étape {index + 1}
+                      {trame === "gamme_nettoyage"
+                        ? `Élément ${index + 1}`
+                        : `Étape ${index + 1}`}
                     </h3>
 
                     <button
@@ -477,6 +584,8 @@ export default function Editor({ onBack }) {
                       placeholder={
                         trame === "instruction_travail"
                           ? "Opération"
+                          : trame === "gamme_nettoyage"
+                          ? "Elements (ex : Barrettes)"
                           : "Nom de l’étape"
                       }
                       value={step.title}
@@ -490,6 +599,8 @@ export default function Editor({ onBack }) {
                       placeholder={
                         trame === "instruction_travail"
                           ? "Description détaillée de l’opération"
+                          : trame === "gamme_nettoyage"
+                          ? "Etat standard de propreté attendu"
                           : "Description précise de l’étape"
                       }
                       value={step.description}
@@ -498,29 +609,75 @@ export default function Editor({ onBack }) {
                       }
                     />
 
-                    <input
-                      className="border rounded-xl p-4"
-                      placeholder="Point sécurité de l’étape"
-                      value={step.safety}
-                      onChange={(e) =>
-                        updateStep(step.id, "safety", e.target.value)
-                      }
-                    />
+                    {trame !== "gamme_nettoyage" && (
+                      <>
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Point sécurité de l’étape"
+                          value={step.safety}
+                          onChange={(e) =>
+                            updateStep(step.id, "safety", e.target.value)
+                          }
+                        />
 
-                    <input
-                      className="border rounded-xl p-4"
-                      placeholder="Point qualité / contrôle de l’étape"
-                      value={step.quality}
-                      onChange={(e) =>
-                        updateStep(step.id, "quality", e.target.value)
-                      }
-                    />
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Point qualité / contrôle de l’étape"
+                          value={step.quality}
+                          onChange={(e) =>
+                            updateStep(step.id, "quality", e.target.value)
+                          }
+                        />
+                      </>
+                    )}
+
+                    {trame === "gamme_nettoyage" && (
+                      <>
+                        <select
+                          className="border rounded-xl p-4 bg-white"
+                          value={step.conditions}
+                          onChange={(e) =>
+                            updateStep(step.id, "conditions", e.target.value)
+                          }
+                        >
+                          <option value="">Conditions (OC / A / M / P)</option>
+                          <option value="OC">OC — Outil condamné</option>
+                          <option value="A">A — À l’arrêt</option>
+                          <option value="M">M — En marche sans produire</option>
+                          <option value="P">P — En marche et en production</option>
+                        </select>
+
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Outillage nécessaire"
+                          value={step.tooling}
+                          onChange={(e) =>
+                            updateStep(step.id, "tooling", e.target.value)
+                          }
+                        />
+
+                        <textarea
+                          className="border rounded-xl p-4 min-h-24"
+                          placeholder="Action si hors standard"
+                          value={step.outOfStandard}
+                          onChange={(e) =>
+                            updateStep(
+                              step.id,
+                              "outOfStandard",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </>
+                    )}
 
                     <input
                       className="border rounded-xl p-4"
                       placeholder={
                         trame === "instruction_travail"
                           ? "Temps (en minutes)"
+                          : trame === "gamme_nettoyage"
+                          ? "Durée (ex : 5 min)"
                           : "Temps estimé"
                       }
                       value={step.duration}
@@ -533,6 +690,17 @@ export default function Editor({ onBack }) {
                       <div className="grid sm:grid-cols-3 gap-4 mt-2">
                         <PhotoUpload
                           title="Illustration"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
+                      </div>
+                    ) : trame === "gamme_nettoyage" ? (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Photo repère"
                           preview={step.preview}
                           onChange={(file) =>
                             updatePhoto(step.id, "preview", file)
@@ -810,6 +978,194 @@ export default function Editor({ onBack }) {
                     ))}
                   </tbody>
                 </table>
+
+                <div className="text-xs text-slate-500 border-t p-4">
+                  Document généré avec Smart Standard — brouillon de standard
+                  opérationnel.
+                </div>
+              </div>
+            ) : trame === "gamme_nettoyage" ? (
+              <div
+                id="standard-print"
+                className="border rounded-2xl overflow-hidden print:border-none"
+              >
+                <div className="bg-slate-200 print:bg-slate-200 text-center py-4 border-b">
+                  <h3 className="text-2xl font-black text-slate-900">
+                    Gamme de Nettoyage
+                  </h3>
+                </div>
+
+                <table
+                  className="w-full border-collapse text-sm"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "12%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-100 text-left">
+                      <th className="border p-2">Unité</th>
+                      <th className="border p-2">Zone</th>
+                      <th className="border p-2">Equipements</th>
+                      <th className="border p-2">Périodicité</th>
+                      <th className="border p-2">Date de création</th>
+                      <th className="border p-2">Date de modification</th>
+                      <th className="border p-2">Resp</th>
+                      <th className="border p-2">Référence document</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border p-2">
+                        {standard.unite || "—"}
+                      </td>
+                      <td className="border p-2">{standard.zone || "—"}</td>
+                      <td className="border p-2">
+                        {standard.equipements || "—"}
+                      </td>
+                      <td className="border p-2">
+                        {standard.periodicite || "—"}
+                      </td>
+                      <td className="border p-2">{standard.date || "—"}</td>
+                      <td className="border p-2">
+                        {standard.dateModif || "—"}
+                      </td>
+                      <td className="border p-2">{standard.owner || "—"}</td>
+                      <td className="border p-2">
+                        {standard.reference || "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="flex gap-2 p-3 border-b">
+                  {steps.some((step) => step.preview) ? (
+                    steps
+                      .map((step, i) => ({ step, num: i + 1 }))
+                      .filter(({ step }) => step.preview)
+                      .map(({ step, num }) => (
+                        <div
+                          key={step.id}
+                          className="relative flex-1 h-40 min-w-0"
+                        >
+                          <img
+                            src={step.preview}
+                            alt=""
+                            className="w-full h-full object-cover rounded border"
+                          />
+                          <span className="absolute top-1 left-1 bg-sky-500 text-white text-xs font-bold w-6 h-6 rounded flex items-center justify-center">
+                            {num}
+                          </span>
+                        </div>
+                      ))
+                  ) : (
+                    <p className="text-sm text-slate-400 italic p-4">
+                      Aucune photo repère ajoutée.
+                    </p>
+                  )}
+                </div>
+
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    <tr>
+                      <td
+                        rowSpan={2}
+                        className="border p-3 w-12 text-center align-middle text-xl"
+                      >
+                        ⚠️
+                      </td>
+                      <td className="border p-2 font-bold text-red-700 w-32">
+                        SÉCURITÉ
+                      </td>
+                      <td className="border p-2">
+                        {standard.safety || "—"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border p-2 font-bold text-blue-700">
+                        QUALITÉ
+                      </td>
+                      <td className="border p-2">
+                        {standard.quality || "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table
+                  className="w-full border-collapse text-sm"
+                  style={{ tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "4%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "27%" }} />
+                    <col style={{ width: "8%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-100 text-left">
+                      <th className="border p-2">N°</th>
+                      <th className="border p-2">Elements</th>
+                      <th className="border p-2">
+                        Etat Standard de propreté
+                      </th>
+                      <th className="border p-2">Conditions</th>
+                      <th className="border p-2">Outillage</th>
+                      <th className="border p-2">Si hors Standard</th>
+                      <th className="border p-2">Durée</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {steps.map((step, index) => (
+                      <tr
+                        key={step.id}
+                        className="align-top break-inside-avoid"
+                      >
+                        <td className="border p-2 text-center font-black">
+                          {index + 1}
+                        </td>
+                        <td className="border p-2 font-semibold">
+                          {step.title || "—"}
+                        </td>
+                        <td className="border p-2">
+                          <p className="whitespace-pre-line">
+                            {step.description || "—"}
+                          </p>
+                        </td>
+                        <td className="border p-2 text-center">
+                          {step.conditions || "—"}
+                        </td>
+                        <td className="border p-2">
+                          {step.tooling || "—"}
+                        </td>
+                        <td className="border p-2">
+                          <p className="whitespace-pre-line">
+                            {step.outOfStandard || "—"}
+                          </p>
+                        </td>
+                        <td className="border p-2 text-center">
+                          {step.duration || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="text-xs border-t p-3">
+                  <strong>Légende :</strong> OC = Outil Condamné · A = à
+                  l’Arrêt · M = en Marche sans produire · P = en marche et en
+                  Production
+                </div>
 
                 <div className="text-xs text-slate-500 border-t p-4">
                   Document généré avec Smart Standard — brouillon de standard
