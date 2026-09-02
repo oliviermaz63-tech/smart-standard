@@ -69,6 +69,151 @@ const emptyStep = {
   keyPoints: "",
 };
 
+// Exemples pré-remplis affichés dans la fenêtre "Voir un exemple" du choix
+// de trame, pour donner un aperçu concret de chaque mise en page sans avoir
+// à créer un standard. Ces données ne sont jamais sauvegardées.
+const EXAMPLE_DATA = {
+  classique: {
+    standard: {
+      ...emptyStandard,
+      title: "Changement de rouleau presse",
+      zone: "Atelier presse - Ligne 3",
+      owner: "J. Petit",
+      objective:
+        "Remplacer le rouleau usé en sécurité et sans impact qualité sur la production.",
+      safety: "Consignation électrique obligatoire avant toute intervention.",
+      quality: "Vérifier l’alignement du nouveau rouleau au montage.",
+      materials: "Clé de 17, chariot élévateur, EPI complets.",
+      control: "Contrôle visuel + test à vide avant remise en production.",
+    },
+    steps: [
+      {
+        ...emptyStep,
+        id: 1,
+        title: "Consigner la machine",
+        description:
+          "Couper l’alimentation électrique et poser le cadenas de consignation.",
+        safety: "Vérifier l’absence de tension avant d’intervenir.",
+        quality: "RAS",
+        duration: "5 min",
+      },
+      {
+        ...emptyStep,
+        id: 2,
+        title: "Démonter le rouleau usé",
+        description:
+          "Retirer les fixations et sortir le rouleau à l’aide du chariot.",
+        safety: "Ne jamais travailler sous une charge suspendue.",
+        quality: "Vérifier l’état de l’axe avant remontage.",
+        duration: "15 min",
+      },
+    ],
+  },
+  instruction_travail: {
+    standard: {
+      ...emptyStandard,
+      title: "Ajustement des virolles sur le mandrin",
+      zone: "END - Enduction",
+      owner: "E. Morel",
+      date: "20/09/2026",
+      reference: "I-END-Virolles-R0",
+    },
+    steps: [
+      {
+        ...emptyStep,
+        id: 1,
+        title: "Ouvrir la porte",
+        description: "Ouvrir la porte pour accéder au mandrin.",
+        safety: "Ne pas laisser les mains entre le mandrin et la virole.",
+        quality: "Vérifier que la porte est bien verrouillée après fermeture.",
+        duration: "2",
+      },
+      {
+        ...emptyStep,
+        id: 2,
+        title: "Ajuster la virolle",
+        description: "Positionner la virolle selon le repère gravé.",
+        safety: "Porter des gants anti-coupure.",
+        quality: "Contrôler le jeu avec la cale de 0,5 mm.",
+        duration: "4",
+      },
+    ],
+  },
+  gamme_nettoyage: {
+    standard: {
+      ...emptyStandard,
+      unite: "Sainte Foy l’Argentière",
+      zone: "SFA 36",
+      equipements: "Presse",
+      periodicite: "Chaque arrêt",
+      date: "11/03/2026",
+      owner: "Resp. atelier",
+      reference: "xxxxx",
+      safety: "Port des gants obligatoire.",
+      quality:
+        "La présence de terre est une source de pollution pouvant générer des défauts.",
+    },
+    steps: [
+      {
+        ...emptyStep,
+        id: 1,
+        title: "Barrettes",
+        description:
+          "Il ne doit pas y avoir de morceaux de terre sur les barrettes.",
+        conditions: "OC",
+        tooling: "Soufflette / Brosse",
+        outOfStandard:
+          "Retirer les morceaux de terre à la main le plus rapidement possible.",
+        duration: "5 min",
+      },
+      {
+        ...emptyStep,
+        id: 2,
+        title: "Autour des moules",
+        description:
+          "Pas de morceaux de terre susceptibles de sécher et de tomber dans le convoyeur.",
+        conditions: "A",
+        tooling: "Soufflette",
+        outOfStandard: "Retirer et jeter dans la benne dédiée.",
+        duration: "3 min",
+      },
+    ],
+  },
+  mode_operatoire: {
+    standard: {
+      ...emptyStandard,
+      title: "Changement de bobine - Ligne Enduction",
+      zone: "END - Ligne 2",
+      owner: "P. Martin",
+      date: "02/09/2026",
+      accordResponsable: "Validé - E. Morel",
+      autres: "Document conforme ISO 9001.",
+    },
+    steps: [
+      {
+        ...emptyStep,
+        id: 1,
+        title: "Opérateur A",
+        description: "Arrêter la ligne et verrouiller.",
+        operatorA: true,
+        operatorB: false,
+        category: "ehs",
+        keyPoints: "Attendre l’arrêt complet avant intervention.",
+      },
+      {
+        ...emptyStep,
+        id: 2,
+        title: "Opérateur B",
+        description: "Contrôler le diamètre de la nouvelle bobine.",
+        operatorA: false,
+        operatorB: true,
+        category: "quality",
+        keyPoints: "Diamètre attendu : 800 mm +/- 5 mm.",
+      },
+    ],
+  },
+};
+
 export default function Editor({ onBack }) {
   const [trame, setTrame] = useState(null);
   const [standard, setStandard] = useState(emptyStandard);
@@ -77,6 +222,7 @@ export default function Editor({ onBack }) {
   const [savedMessage, setSavedMessage] = useState("");
   const [aiResult, setAiResult] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
+  const [exampleModal, setExampleModal] = useState(null);
 
   useEffect(() => {
     const savedDraft = localStorage.getItem(STORAGE_KEY);
@@ -319,707 +465,9 @@ export default function Editor({ onBack }) {
     (completedFields / requiredFields.length) * 100
   );
 
-  return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-6 print:hidden">
-          <button
-            onClick={onBack}
-            className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
-          >
-            ← Retour
-          </button>
-
-          {savedMessage && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-2">
-              {savedMessage}
-            </p>
-          )}
-        </div>
-
-        {!trame ? (
-          <div className="print:hidden">
-            <h1 className="text-4xl font-bold text-slate-900">
-              Choisis une trame
-            </h1>
-
-            <p className="mt-2 text-slate-600">
-              Le type de trame détermine les informations demandées et la mise
-              en page du standard généré.
-            </p>
-
-            <div className="mt-8 grid sm:grid-cols-2 gap-6">
-              {Object.entries(TRAMES).map(([key, info]) => (
-                <button
-                  key={key}
-                  onClick={() => chooseTrame(key)}
-                  className="text-left bg-white border-2 border-transparent hover:border-slate-950 rounded-3xl p-8 shadow-sm transition"
-                >
-                  <h2 className="text-xl font-bold text-slate-900">
-                    {info.label}
-                  </h2>
-                  <p className="mt-3 text-slate-600">{info.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="print:hidden">
-              <div className="flex items-center justify-between gap-4">
-                <h1 className="text-4xl font-bold text-slate-900">
-                  Créer un nouveau standard
-                </h1>
-
-                <button
-                  onClick={changeTrame}
-                  className="text-sm text-slate-600 hover:underline whitespace-nowrap"
-                >
-                  ↺ Changer de trame
-                </button>
-              </div>
-
-              <p className="mt-2 text-slate-600">
-                Trame : <strong>{TRAMES[trame].label}</strong> — Structure
-                guidée pour créer un standard simple, clair et exploitable
-                terrain.
-              </p>
-
-              <div className="mt-6 bg-white border rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-slate-900">
-                    Complétude du standard
-                  </p>
-                  <p className="font-bold text-slate-900">{completionScore}%</p>
-                </div>
-
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-slate-950 rounded-full"
-                    style={{ width: `${completionScore}%` }}
-                  />
-                </div>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  Objectif : avoir un standard suffisamment clair pour être compris,
-                  appliqué et audité sur le terrain.
-                </p>
-              </div>
-            </div>
-
-        <div className="mt-8 grid gap-8 print:hidden">
-          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">
-              Informations générales
-            </h2>
-
-            <div className="grid gap-5">
-              {trame !== "gamme_nettoyage" && (
-                <input
-                  className="border rounded-xl p-4"
-                  placeholder="Titre du standard"
-                  value={standard.title}
-                  onChange={(e) => updateField("title", e.target.value)}
-                />
-              )}
-
-              {trame === "gamme_nettoyage" && (
-                <input
-                  className="border rounded-xl p-4"
-                  placeholder="Unité (ex : Sainte Foy l’Argentière)"
-                  value={standard.unite}
-                  onChange={(e) => updateField("unite", e.target.value)}
-                />
-              )}
-
-              <input
-                className="border rounded-xl p-4"
-                placeholder={
-                  trame === "instruction_travail"
-                    ? "Machine / zone de travail"
-                    : trame === "gamme_nettoyage"
-                    ? "Zone (ex : SFA 36)"
-                    : trame === "mode_operatoire"
-                    ? "Lieu / ligne / poste"
-                    : "Zone / poste / ligne"
-                }
-                value={standard.zone}
-                onChange={(e) => updateField("zone", e.target.value)}
-              />
-
-              {trame === "gamme_nettoyage" && (
-                <input
-                  className="border rounded-xl p-4"
-                  placeholder="Equipements (ex : Presse)"
-                  value={standard.equipements}
-                  onChange={(e) =>
-                    updateField("equipements", e.target.value)
-                  }
-                />
-              )}
-
-              <input
-                className="border rounded-xl p-4"
-                placeholder={
-                  trame === "instruction_travail"
-                    ? "Propriétaire"
-                    : trame === "gamme_nettoyage"
-                    ? "Resp"
-                    : trame === "mode_operatoire"
-                    ? "Rédacteur"
-                    : "Responsable / référent"
-                }
-                value={standard.owner}
-                onChange={(e) => updateField("owner", e.target.value)}
-              />
-
-              {trame === "instruction_travail" && (
-                <>
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Date (ex : 20/09/2026)"
-                    value={standard.date}
-                    onChange={(e) => updateField("date", e.target.value)}
-                  />
-
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Référence document (ex : I-END-Gestion-lèves-fûts-R0)"
-                    value={standard.reference}
-                    onChange={(e) =>
-                      updateField("reference", e.target.value)
-                    }
-                  />
-                </>
-              )}
-
-              {trame === "gamme_nettoyage" && (
-                <>
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Périodicité (ex : Chaque arrêt)"
-                    value={standard.periodicite}
-                    onChange={(e) =>
-                      updateField("periodicite", e.target.value)
-                    }
-                  />
-
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Date de création"
-                    value={standard.date}
-                    onChange={(e) => updateField("date", e.target.value)}
-                  />
-
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Date de modification"
-                    value={standard.dateModif}
-                    onChange={(e) =>
-                      updateField("dateModif", e.target.value)
-                    }
-                  />
-
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Référence document (ex : xxxxx)"
-                    value={standard.reference}
-                    onChange={(e) =>
-                      updateField("reference", e.target.value)
-                    }
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-20"
-                    placeholder="Consigne sécurité (bandeau)"
-                    value={standard.safety}
-                    onChange={(e) => updateField("safety", e.target.value)}
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-20"
-                    placeholder="Consigne qualité (bandeau)"
-                    value={standard.quality}
-                    onChange={(e) => updateField("quality", e.target.value)}
-                  />
-                </>
-              )}
-
-              {trame === "mode_operatoire" && (
-                <>
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Date"
-                    value={standard.date}
-                    onChange={(e) => updateField("date", e.target.value)}
-                  />
-
-                  <input
-                    className="border rounded-xl p-4"
-                    placeholder="Accord du responsable pour implémentation"
-                    value={standard.accordResponsable}
-                    onChange={(e) =>
-                      updateField("accordResponsable", e.target.value)
-                    }
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-20"
-                    placeholder="Autres (prérequis, codification, etc.)"
-                    value={standard.autres}
-                    onChange={(e) => updateField("autres", e.target.value)}
-                  />
-
-                  <div className="grid sm:grid-cols-2 gap-4 mt-2">
-                    <PhotoUpload
-                      title="Croquis / Schéma"
-                      preview={standard.sketch}
-                      onChange={(file) =>
-                        updateStandardPhoto("sketch", file)
-                      }
-                      onRemove={() => removeStandardPhoto("sketch")}
-                    />
-
-                    <PhotoUpload
-                      title="Photo"
-                      preview={standard.photo}
-                      onChange={(file) => updateStandardPhoto("photo", file)}
-                      onRemove={() => removeStandardPhoto("photo")}
-                    />
-                  </div>
-                </>
-              )}
-
-              {trame === "classique" && (
-                <>
-                  <textarea
-                    className="border rounded-xl p-4 min-h-24"
-                    placeholder="Objectif du standard"
-                    value={standard.objective}
-                    onChange={(e) =>
-                      updateField("objective", e.target.value)
-                    }
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-24"
-                    placeholder="Points sécurité importants"
-                    value={standard.safety}
-                    onChange={(e) => updateField("safety", e.target.value)}
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-24"
-                    placeholder="Points qualité importants"
-                    value={standard.quality}
-                    onChange={(e) => updateField("quality", e.target.value)}
-                  />
-
-                  <textarea
-                    className="border rounded-xl p-4 min-h-24"
-                    placeholder="Matériel / outillage / documents nécessaires"
-                    value={standard.materials}
-                    onChange={(e) =>
-                      updateField("materials", e.target.value)
-                    }
-                  />
-                </>
-              )}
-            </div>
-          </section>
-
-          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">
-                {trame === "gamme_nettoyage"
-                  ? "Éléments à nettoyer"
-                  : trame === "mode_operatoire"
-                  ? "Séquence d’opérations"
-                  : "Étapes du standard"}
-              </h2>
-
-              <button
-                onClick={addStep}
-                className="px-5 py-3 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
-              >
-                {trame === "gamme_nettoyage"
-                  ? "+ Ajouter un élément"
-                  : trame === "mode_operatoire"
-                  ? "+ Ajouter une opération"
-                  : "+ Ajouter une étape"}
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {steps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className="border rounded-2xl p-6 bg-slate-50"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold">
-                      {trame === "gamme_nettoyage"
-                        ? `Élément ${index + 1}`
-                        : trame === "mode_operatoire"
-                        ? `Opération ${index + 1}`
-                        : `Étape ${index + 1}`}
-                    </h3>
-
-                    <button
-                      onClick={() => removeStep(step.id)}
-                      className="text-sm text-red-600 hover:underline"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-
-                  <div className="grid gap-4">
-                    <input
-                      className="border rounded-xl p-4"
-                      placeholder={
-                        trame === "instruction_travail"
-                          ? "Opération"
-                          : trame === "gamme_nettoyage"
-                          ? "Elements (ex : Barrettes)"
-                          : trame === "mode_operatoire"
-                          ? "Qui (opérateur / rôle)"
-                          : "Nom de l’étape"
-                      }
-                      value={step.title}
-                      onChange={(e) =>
-                        updateStep(step.id, "title", e.target.value)
-                      }
-                    />
-
-                    <textarea
-                      className="border rounded-xl p-4 min-h-24"
-                      placeholder={
-                        trame === "instruction_travail"
-                          ? "Description détaillée de l’opération"
-                          : trame === "gamme_nettoyage"
-                          ? "Etat standard de propreté attendu"
-                          : trame === "mode_operatoire"
-                          ? "Comment (verbe d’action, détail de l’opération)"
-                          : "Description précise de l’étape"
-                      }
-                      value={step.description}
-                      onChange={(e) =>
-                        updateStep(step.id, "description", e.target.value)
-                      }
-                    />
-
-                    {trame !== "gamme_nettoyage" && trame !== "mode_operatoire" && (
-                      <>
-                        <input
-                          className="border rounded-xl p-4"
-                          placeholder="Point sécurité de l’étape"
-                          value={step.safety}
-                          onChange={(e) =>
-                            updateStep(step.id, "safety", e.target.value)
-                          }
-                        />
-
-                        <input
-                          className="border rounded-xl p-4"
-                          placeholder="Point qualité / contrôle de l’étape"
-                          value={step.quality}
-                          onChange={(e) =>
-                            updateStep(step.id, "quality", e.target.value)
-                          }
-                        />
-                      </>
-                    )}
-
-                    {trame === "mode_operatoire" && (
-                      <>
-                        <div className="flex gap-6 items-center bg-white border rounded-xl p-4">
-                          <label className="flex items-center gap-2 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={step.operatorA}
-                              onChange={(e) =>
-                                updateStep(
-                                  step.id,
-                                  "operatorA",
-                                  e.target.checked
-                                )
-                              }
-                            />
-                            Opérateur A
-                          </label>
-
-                          <label className="flex items-center gap-2 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={step.operatorB}
-                              onChange={(e) =>
-                                updateStep(
-                                  step.id,
-                                  "operatorB",
-                                  e.target.checked
-                                )
-                              }
-                            />
-                            Opérateur B
-                          </label>
-                        </div>
-
-                        <select
-                          className="border rounded-xl p-4 bg-white"
-                          value={step.category}
-                          onChange={(e) =>
-                            updateStep(step.id, "category", e.target.value)
-                          }
-                        >
-                          <option value="">Type de point (normal)</option>
-                          <option value="ehs">EHS (mise en évidence jaune)</option>
-                          <option value="quality">
-                            Qualité (mise en évidence rouge)
-                          </option>
-                        </select>
-
-                        <textarea
-                          className="border rounded-xl p-4 min-h-24"
-                          placeholder="Points clés (détail pour ne pas faire d’erreur)"
-                          value={step.keyPoints}
-                          onChange={(e) =>
-                            updateStep(step.id, "keyPoints", e.target.value)
-                          }
-                        />
-                      </>
-                    )}
-
-                    {trame === "gamme_nettoyage" && (
-                      <>
-                        <select
-                          className="border rounded-xl p-4 bg-white"
-                          value={step.conditions}
-                          onChange={(e) =>
-                            updateStep(step.id, "conditions", e.target.value)
-                          }
-                        >
-                          <option value="">Conditions (OC / A / M / P)</option>
-                          <option value="OC">OC — Outil condamné</option>
-                          <option value="A">A — À l’arrêt</option>
-                          <option value="M">M — En marche sans produire</option>
-                          <option value="P">P — En marche et en production</option>
-                        </select>
-
-                        <input
-                          className="border rounded-xl p-4"
-                          placeholder="Outillage nécessaire"
-                          value={step.tooling}
-                          onChange={(e) =>
-                            updateStep(step.id, "tooling", e.target.value)
-                          }
-                        />
-
-                        <textarea
-                          className="border rounded-xl p-4 min-h-24"
-                          placeholder="Action si hors standard"
-                          value={step.outOfStandard}
-                          onChange={(e) =>
-                            updateStep(
-                              step.id,
-                              "outOfStandard",
-                              e.target.value
-                            )
-                          }
-                        />
-                      </>
-                    )}
-
-                    {trame !== "mode_operatoire" && (
-                      <input
-                        className="border rounded-xl p-4"
-                        placeholder={
-                          trame === "instruction_travail"
-                            ? "Temps (en minutes)"
-                            : trame === "gamme_nettoyage"
-                            ? "Durée (ex : 5 min)"
-                            : "Temps estimé"
-                        }
-                        value={step.duration}
-                        onChange={(e) =>
-                          updateStep(step.id, "duration", e.target.value)
-                        }
-                      />
-                    )}
-
-                    {trame === "instruction_travail" ? (
-                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
-                        <PhotoUpload
-                          title="Illustration"
-                          preview={step.preview}
-                          onChange={(file) =>
-                            updatePhoto(step.id, "preview", file)
-                          }
-                          onRemove={() => removePhoto(step.id, "preview")}
-                        />
-                      </div>
-                    ) : trame === "gamme_nettoyage" ? (
-                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
-                        <PhotoUpload
-                          title="Photo repère"
-                          preview={step.preview}
-                          onChange={(file) =>
-                            updatePhoto(step.id, "preview", file)
-                          }
-                          onRemove={() => removePhoto(step.id, "preview")}
-                        />
-                      </div>
-                    ) : trame === "mode_operatoire" ? null : (
-                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
-                        <PhotoUpload
-                          title="Photo terrain"
-                          preview={step.preview}
-                          onChange={(file) =>
-                            updatePhoto(step.id, "preview", file)
-                          }
-                          onRemove={() => removePhoto(step.id, "preview")}
-                        />
-
-                        <PhotoUpload
-                          title="Photo OK"
-                          preview={step.okPreview}
-                          onChange={(file) =>
-                            updatePhoto(step.id, "okPreview", file)
-                          }
-                          onRemove={() => removePhoto(step.id, "okPreview")}
-                        />
-
-                        <PhotoUpload
-                          title="Photo NOK"
-                          preview={step.nokPreview}
-                          onChange={(file) =>
-                            updatePhoto(step.id, "nokPreview", file)
-                          }
-                          onRemove={() => removePhoto(step.id, "nokPreview")}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-            {trame === "classique" && (
-              <>
-                <h2 className="text-2xl font-bold text-slate-900 mb-6">
-                  Validation terrain
-                </h2>
-
-                <textarea
-                  className="border rounded-xl p-4 min-h-28 w-full"
-                  placeholder="Points de contrôle / critères d’acceptation / erreurs à éviter"
-                  value={standard.control}
-                  onChange={(e) => updateField("control", e.target.value)}
-                />
-              </>
-            )}
-
-            <div className="mt-6 flex flex-wrap gap-4">
-              <button
-                onClick={generateStandard}
-                className="px-6 py-4 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
-              >
-                Générer l’aperçu du standard
-              </button>
-
-              <button
-                onClick={() => improveWithAI("quick")}
-                disabled={loadingAI}
-                className="px-6 py-4 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 disabled:opacity-60"
-              >
-                ⚡ Analyse rapide
-              </button>
-
-              <button
-                onClick={() => improveWithAI("standard")}
-                disabled={loadingAI}
-                className="px-6 py-4 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
-              >
-                🏭 Analyse standard
-              </button>
-
-              <button
-                onClick={() => improveWithAI("expert")}
-                disabled={loadingAI}
-                className="px-6 py-4 rounded-xl bg-purple-700 text-white font-semibold hover:bg-purple-600 disabled:opacity-60"
-              >
-                🔬 Analyse expert
-              </button>
-
-              <button
-                onClick={resetDraft}
-                className="px-6 py-4 rounded-xl bg-white border text-red-600 font-semibold hover:bg-red-50"
-              >
-                Réinitialiser
-              </button>
-            </div>
-
-            {loadingAI && (
-              <p className="mt-4 text-sm text-blue-700">
-                Analyse IA en cours...
-              </p>
-            )}
-          </section>
-        </div>
-
-        {aiResult && (
-          <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200 print:hidden">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-slate-900">
-                Analyse IA Lean
-              </h2>
-
-              <button
-                onClick={() => setAiResult("")}
-                className="px-4 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
-              >
-                Masquer
-              </button>
-            </div>
-
-            <div className="whitespace-pre-line text-slate-700 leading-7 bg-slate-50 rounded-2xl p-6 border">
-              {aiResult}
-            </div>
-          </section>
-        )}
-
-        {showPreview && (
-          <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200 print:shadow-none print:border-none print:rounded-none print:p-0 print:mt-0">
-            <div className="flex items-center justify-between mb-6 print:hidden">
-              <h2 className="text-3xl font-bold text-slate-900">
-                Aperçu du standard généré
-              </h2>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={printStandard}
-                  className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800"
-                >
-                  Imprimer / Export PDF
-                </button>
-
-                <button
-                  onClick={saveToLibrary}
-                  className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
-                >
-                  Sauvegarder dans la bibliothèque
-                </button>
-
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
-                >
-                  Masquer
-                </button>
-              </div>
-            </div>
-
+  function renderPrintLayout(trame, standard, steps) {
+    return (
+      <>
             {trame === "instruction_travail" ? (
               <div
                 id="standard-print"
@@ -1660,11 +1108,773 @@ export default function Editor({ onBack }) {
               </div>
             </div>
             )}
+      </>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 px-6 py-10">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between gap-4 mb-6 print:hidden">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
+          >
+            ← Retour
+          </button>
+
+          {savedMessage && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-2">
+              {savedMessage}
+            </p>
+          )}
+        </div>
+
+        {!trame ? (
+          <div className="print:hidden">
+            <h1 className="text-4xl font-bold text-slate-900">
+              Choisis une trame
+            </h1>
+
+            <p className="mt-2 text-slate-600">
+              Le type de trame détermine les informations demandées et la mise
+              en page du standard généré.
+            </p>
+
+            <div className="mt-8 grid sm:grid-cols-2 gap-6">
+              {Object.entries(TRAMES).map(([key, info]) => (
+                <button
+                  key={key}
+                  onClick={() => chooseTrame(key)}
+                  className="text-left bg-white border-2 border-transparent hover:border-slate-950 rounded-3xl p-8 shadow-sm transition"
+                >
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {info.label}
+                  </h2>
+                  <p className="mt-3 text-slate-600">{info.description}</p>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExampleModal(key);
+                    }}
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900 underline hover:no-underline"
+                  >
+                    👁 Voir un exemple
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="print:hidden">
+              <h1 className="text-4xl font-bold text-slate-900">
+                Créer un nouveau standard
+              </h1>
+
+              <p className="mt-2 text-slate-600">
+                Trame : <strong>{TRAMES[trame].label}</strong> — Structure
+                guidée pour créer un standard simple, clair et exploitable
+                terrain. Pour choisir une autre trame,{" "}
+                <button
+                  onClick={changeTrame}
+                  className="text-slate-900 underline hover:no-underline font-medium"
+                >
+                  cliquez ici
+                </button>
+                .
+              </p>
+
+              <div className="mt-6 bg-white border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-slate-900">
+                    Complétude du standard
+                  </p>
+                  <p className="font-bold text-slate-900">{completionScore}%</p>
+                </div>
+
+                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-slate-950 rounded-full"
+                    style={{ width: `${completionScore}%` }}
+                  />
+                </div>
+
+                <p className="mt-2 text-sm text-slate-500">
+                  Objectif : avoir un standard suffisamment clair pour être compris,
+                  appliqué et audité sur le terrain.
+                </p>
+              </div>
+            </div>
+
+        <div className="mt-8 grid gap-8 print:hidden">
+          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">
+              Informations générales
+            </h2>
+
+            <div className="grid gap-5">
+              {trame !== "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Titre du standard"
+                  value={standard.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                />
+              )}
+
+              {trame === "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Unité (ex : Sainte Foy l’Argentière)"
+                  value={standard.unite}
+                  onChange={(e) => updateField("unite", e.target.value)}
+                />
+              )}
+
+              <input
+                className="border rounded-xl p-4"
+                placeholder={
+                  trame === "instruction_travail"
+                    ? "Machine / zone de travail"
+                    : trame === "gamme_nettoyage"
+                    ? "Zone (ex : SFA 36)"
+                    : trame === "mode_operatoire"
+                    ? "Lieu / ligne / poste"
+                    : "Zone / poste / ligne"
+                }
+                value={standard.zone}
+                onChange={(e) => updateField("zone", e.target.value)}
+              />
+
+              {trame === "gamme_nettoyage" && (
+                <input
+                  className="border rounded-xl p-4"
+                  placeholder="Equipements (ex : Presse)"
+                  value={standard.equipements}
+                  onChange={(e) =>
+                    updateField("equipements", e.target.value)
+                  }
+                />
+              )}
+
+              <input
+                className="border rounded-xl p-4"
+                placeholder={
+                  trame === "instruction_travail"
+                    ? "Propriétaire"
+                    : trame === "gamme_nettoyage"
+                    ? "Resp"
+                    : trame === "mode_operatoire"
+                    ? "Rédacteur"
+                    : "Responsable / référent"
+                }
+                value={standard.owner}
+                onChange={(e) => updateField("owner", e.target.value)}
+              />
+
+              {trame === "instruction_travail" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date (ex : 20/09/2026)"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Référence document (ex : I-END-Gestion-lèves-fûts-R0)"
+                    value={standard.reference}
+                    onChange={(e) =>
+                      updateField("reference", e.target.value)
+                    }
+                  />
+                </>
+              )}
+
+              {trame === "gamme_nettoyage" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Périodicité (ex : Chaque arrêt)"
+                    value={standard.periodicite}
+                    onChange={(e) =>
+                      updateField("periodicite", e.target.value)
+                    }
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date de création"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date de modification"
+                    value={standard.dateModif}
+                    onChange={(e) =>
+                      updateField("dateModif", e.target.value)
+                    }
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Référence document (ex : xxxxx)"
+                    value={standard.reference}
+                    onChange={(e) =>
+                      updateField("reference", e.target.value)
+                    }
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Consigne sécurité (bandeau)"
+                    value={standard.safety}
+                    onChange={(e) => updateField("safety", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Consigne qualité (bandeau)"
+                    value={standard.quality}
+                    onChange={(e) => updateField("quality", e.target.value)}
+                  />
+                </>
+              )}
+
+              {trame === "mode_operatoire" && (
+                <>
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Date"
+                    value={standard.date}
+                    onChange={(e) => updateField("date", e.target.value)}
+                  />
+
+                  <input
+                    className="border rounded-xl p-4"
+                    placeholder="Accord du responsable pour implémentation"
+                    value={standard.accordResponsable}
+                    onChange={(e) =>
+                      updateField("accordResponsable", e.target.value)
+                    }
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-20"
+                    placeholder="Autres (prérequis, codification, etc.)"
+                    value={standard.autres}
+                    onChange={(e) => updateField("autres", e.target.value)}
+                  />
+
+                  <div className="grid sm:grid-cols-2 gap-4 mt-2">
+                    <PhotoUpload
+                      title="Croquis / Schéma"
+                      preview={standard.sketch}
+                      onChange={(file) =>
+                        updateStandardPhoto("sketch", file)
+                      }
+                      onRemove={() => removeStandardPhoto("sketch")}
+                    />
+
+                    <PhotoUpload
+                      title="Photo"
+                      preview={standard.photo}
+                      onChange={(file) => updateStandardPhoto("photo", file)}
+                      onRemove={() => removeStandardPhoto("photo")}
+                    />
+                  </div>
+                </>
+              )}
+
+              {trame === "classique" && (
+                <>
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Objectif du standard"
+                    value={standard.objective}
+                    onChange={(e) =>
+                      updateField("objective", e.target.value)
+                    }
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Points sécurité importants"
+                    value={standard.safety}
+                    onChange={(e) => updateField("safety", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Points qualité importants"
+                    value={standard.quality}
+                    onChange={(e) => updateField("quality", e.target.value)}
+                  />
+
+                  <textarea
+                    className="border rounded-xl p-4 min-h-24"
+                    placeholder="Matériel / outillage / documents nécessaires"
+                    value={standard.materials}
+                    onChange={(e) =>
+                      updateField("materials", e.target.value)
+                    }
+                  />
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                {trame === "gamme_nettoyage"
+                  ? "Éléments à nettoyer"
+                  : trame === "mode_operatoire"
+                  ? "Séquence d’opérations"
+                  : "Étapes du standard"}
+              </h2>
+
+              <button
+                onClick={addStep}
+                className="px-5 py-3 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
+              >
+                {trame === "gamme_nettoyage"
+                  ? "+ Ajouter un élément"
+                  : trame === "mode_operatoire"
+                  ? "+ Ajouter une opération"
+                  : "+ Ajouter une étape"}
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {steps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className="border rounded-2xl p-6 bg-slate-50"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">
+                      {trame === "gamme_nettoyage"
+                        ? `Élément ${index + 1}`
+                        : trame === "mode_operatoire"
+                        ? `Opération ${index + 1}`
+                        : `Étape ${index + 1}`}
+                    </h3>
+
+                    <button
+                      onClick={() => removeStep(step.id)}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <input
+                      className="border rounded-xl p-4"
+                      placeholder={
+                        trame === "instruction_travail"
+                          ? "Opération"
+                          : trame === "gamme_nettoyage"
+                          ? "Elements (ex : Barrettes)"
+                          : trame === "mode_operatoire"
+                          ? "Qui (opérateur / rôle)"
+                          : "Nom de l’étape"
+                      }
+                      value={step.title}
+                      onChange={(e) =>
+                        updateStep(step.id, "title", e.target.value)
+                      }
+                    />
+
+                    <textarea
+                      className="border rounded-xl p-4 min-h-24"
+                      placeholder={
+                        trame === "instruction_travail"
+                          ? "Description détaillée de l’opération"
+                          : trame === "gamme_nettoyage"
+                          ? "Etat standard de propreté attendu"
+                          : trame === "mode_operatoire"
+                          ? "Comment (verbe d’action, détail de l’opération)"
+                          : "Description précise de l’étape"
+                      }
+                      value={step.description}
+                      onChange={(e) =>
+                        updateStep(step.id, "description", e.target.value)
+                      }
+                    />
+
+                    {trame !== "gamme_nettoyage" && trame !== "mode_operatoire" && (
+                      <>
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Point sécurité de l’étape"
+                          value={step.safety}
+                          onChange={(e) =>
+                            updateStep(step.id, "safety", e.target.value)
+                          }
+                        />
+
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Point qualité / contrôle de l’étape"
+                          value={step.quality}
+                          onChange={(e) =>
+                            updateStep(step.id, "quality", e.target.value)
+                          }
+                        />
+                      </>
+                    )}
+
+                    {trame === "mode_operatoire" && (
+                      <>
+                        <div className="flex gap-6 items-center bg-white border rounded-xl p-4">
+                          <label className="flex items-center gap-2 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={step.operatorA}
+                              onChange={(e) =>
+                                updateStep(
+                                  step.id,
+                                  "operatorA",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                            Opérateur A
+                          </label>
+
+                          <label className="flex items-center gap-2 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={step.operatorB}
+                              onChange={(e) =>
+                                updateStep(
+                                  step.id,
+                                  "operatorB",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                            Opérateur B
+                          </label>
+                        </div>
+
+                        <select
+                          className="border rounded-xl p-4 bg-white"
+                          value={step.category}
+                          onChange={(e) =>
+                            updateStep(step.id, "category", e.target.value)
+                          }
+                        >
+                          <option value="">Type de point (normal)</option>
+                          <option value="ehs">EHS (mise en évidence jaune)</option>
+                          <option value="quality">
+                            Qualité (mise en évidence rouge)
+                          </option>
+                        </select>
+
+                        <textarea
+                          className="border rounded-xl p-4 min-h-24"
+                          placeholder="Points clés (détail pour ne pas faire d’erreur)"
+                          value={step.keyPoints}
+                          onChange={(e) =>
+                            updateStep(step.id, "keyPoints", e.target.value)
+                          }
+                        />
+                      </>
+                    )}
+
+                    {trame === "gamme_nettoyage" && (
+                      <>
+                        <select
+                          className="border rounded-xl p-4 bg-white"
+                          value={step.conditions}
+                          onChange={(e) =>
+                            updateStep(step.id, "conditions", e.target.value)
+                          }
+                        >
+                          <option value="">Conditions (OC / A / M / P)</option>
+                          <option value="OC">OC — Outil condamné</option>
+                          <option value="A">A — À l’arrêt</option>
+                          <option value="M">M — En marche sans produire</option>
+                          <option value="P">P — En marche et en production</option>
+                        </select>
+
+                        <input
+                          className="border rounded-xl p-4"
+                          placeholder="Outillage nécessaire"
+                          value={step.tooling}
+                          onChange={(e) =>
+                            updateStep(step.id, "tooling", e.target.value)
+                          }
+                        />
+
+                        <textarea
+                          className="border rounded-xl p-4 min-h-24"
+                          placeholder="Action si hors standard"
+                          value={step.outOfStandard}
+                          onChange={(e) =>
+                            updateStep(
+                              step.id,
+                              "outOfStandard",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </>
+                    )}
+
+                    {trame !== "mode_operatoire" && (
+                      <input
+                        className="border rounded-xl p-4"
+                        placeholder={
+                          trame === "instruction_travail"
+                            ? "Temps (en minutes)"
+                            : trame === "gamme_nettoyage"
+                            ? "Durée (ex : 5 min)"
+                            : "Temps estimé"
+                        }
+                        value={step.duration}
+                        onChange={(e) =>
+                          updateStep(step.id, "duration", e.target.value)
+                        }
+                      />
+                    )}
+
+                    {trame === "instruction_travail" ? (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Illustration"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
+                      </div>
+                    ) : trame === "gamme_nettoyage" ? (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Photo repère"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
+                      </div>
+                    ) : trame === "mode_operatoire" ? null : (
+                      <div className="grid sm:grid-cols-3 gap-4 mt-2">
+                        <PhotoUpload
+                          title="Photo terrain"
+                          preview={step.preview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "preview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "preview")}
+                        />
+
+                        <PhotoUpload
+                          title="Photo OK"
+                          preview={step.okPreview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "okPreview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "okPreview")}
+                        />
+
+                        <PhotoUpload
+                          title="Photo NOK"
+                          preview={step.nokPreview}
+                          onChange={(file) =>
+                            updatePhoto(step.id, "nokPreview", file)
+                          }
+                          onRemove={() => removePhoto(step.id, "nokPreview")}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+            {trame === "classique" && (
+              <>
+                <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                  Validation terrain
+                </h2>
+
+                <textarea
+                  className="border rounded-xl p-4 min-h-28 w-full"
+                  placeholder="Points de contrôle / critères d’acceptation / erreurs à éviter"
+                  value={standard.control}
+                  onChange={(e) => updateField("control", e.target.value)}
+                />
+              </>
+            )}
+
+            <div className="mt-6 flex flex-wrap gap-4">
+              <button
+                onClick={generateStandard}
+                className="px-6 py-4 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
+              >
+                Générer l’aperçu du standard
+              </button>
+
+              <button
+                onClick={() => improveWithAI("quick")}
+                disabled={loadingAI}
+                className="px-6 py-4 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 disabled:opacity-60"
+              >
+                ⚡ Analyse rapide
+              </button>
+
+              <button
+                onClick={() => improveWithAI("standard")}
+                disabled={loadingAI}
+                className="px-6 py-4 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+              >
+                🏭 Analyse standard
+              </button>
+
+              <button
+                onClick={() => improveWithAI("expert")}
+                disabled={loadingAI}
+                className="px-6 py-4 rounded-xl bg-purple-700 text-white font-semibold hover:bg-purple-600 disabled:opacity-60"
+              >
+                🔬 Analyse expert
+              </button>
+
+              <button
+                onClick={resetDraft}
+                className="px-6 py-4 rounded-xl bg-white border text-red-600 font-semibold hover:bg-red-50"
+              >
+                Réinitialiser
+              </button>
+            </div>
+
+            {loadingAI && (
+              <p className="mt-4 text-sm text-blue-700">
+                Analyse IA en cours...
+              </p>
+            )}
+          </section>
+        </div>
+
+        {aiResult && (
+          <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200 print:hidden">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-slate-900">
+                Analyse IA Lean
+              </h2>
+
+              <button
+                onClick={() => setAiResult("")}
+                className="px-4 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
+              >
+                Masquer
+              </button>
+            </div>
+
+            <div className="whitespace-pre-line text-slate-700 leading-7 bg-slate-50 rounded-2xl p-6 border">
+              {aiResult}
+            </div>
+          </section>
+        )}
+
+        {showPreview && (
+          <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200 print:shadow-none print:border-none print:rounded-none print:p-0 print:mt-0">
+            <div className="flex items-center justify-between mb-6 print:hidden">
+              <h2 className="text-3xl font-bold text-slate-900">
+                Aperçu du standard généré
+              </h2>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={printStandard}
+                  className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800"
+                >
+                  Imprimer / Export PDF
+                </button>
+
+                <button
+                  onClick={saveToLibrary}
+                  className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
+                >
+                  Sauvegarder dans la bibliothèque
+                </button>
+
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
+                >
+                  Masquer
+                </button>
+              </div>
+            </div>
+
+            {renderPrintLayout(trame, standard, steps)}
           </section>
         )}
           </>
         )}
       </div>
+
+      {exampleModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 flex items-start justify-center overflow-y-auto p-6 print:hidden"
+          onClick={() => setExampleModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-xl w-full max-w-6xl my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 px-8 py-5 border-b">
+              <div>
+                <p className="text-sm text-slate-500">Exemple de trame</p>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {TRAMES[exampleModal].label}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    chooseTrame(exampleModal);
+                    setExampleModal(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800 whitespace-nowrap"
+                >
+                  Choisir cette trame
+                </button>
+
+                <button
+                  onClick={() => setExampleModal(null)}
+                  className="px-3 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8">
+              {renderPrintLayout(
+                exampleModal,
+                EXAMPLE_DATA[exampleModal].standard,
+                EXAMPLE_DATA[exampleModal].steps
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
