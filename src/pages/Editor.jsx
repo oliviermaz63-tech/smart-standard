@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../config";
 import { PhotoUpload } from "../components/TerrainStandard";
 import { compressImage } from "../utils/compressImage";
+import { exportStandardToWord } from "../utils/exportWord";
 
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
@@ -273,6 +274,7 @@ export default function Editor({ onBack }) {
   const [aiResult, setAiResult] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
   const [exampleModal, setExampleModal] = useState(null);
+  const [exportingWord, setExportingWord] = useState(false);
 
   useEffect(() => {
     const savedDraft = localStorage.getItem(STORAGE_KEY);
@@ -472,6 +474,18 @@ export default function Editor({ onBack }) {
 
   function printStandard() {
     window.print();
+  }
+
+  async function exportWord() {
+    setExportingWord(true);
+    try {
+      await exportStandardToWord(trame, standard, steps);
+    } catch (error) {
+      console.error("Erreur export Word :", error);
+      alert("Impossible de générer le fichier Word, réessaie.");
+    } finally {
+      setExportingWord(false);
+    }
   }
 
   function saveToLibrary() {
@@ -1966,6 +1980,16 @@ export default function Editor({ onBack }) {
                   className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800"
                 >
                   Imprimer / Export PDF
+                </button>
+
+                <button
+                  onClick={exportWord}
+                  disabled={exportingWord}
+                  className="px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-60"
+                >
+                  {exportingWord
+                    ? "Génération du Word…"
+                    : "Exporter en Word (.docx)"}
                 </button>
 
                 <button
