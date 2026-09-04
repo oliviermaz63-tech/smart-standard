@@ -2,12 +2,99 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+/* =======================================================
+   PROTECTION DE L'API
+   -------------------------------------------------------
+   Ce backend appelle OpenAI (donc coûte de l'argent à chaque
+   requête). Sans protection, n'importe qui trouvant l'URL
+   Railway pouvait appeler les endpoints sans limite. Trois
+   protections complémentaires, aucune n'étant suffisante seule :
+
+   1. CORS restreint : seules les origines listées dans
+      ALLOWED_ORIGINS (+ localhost en dev) peuvent appeler l'API
+      depuis un navigateur.
+   2. Clé d'application partagée (APP_SHARED_KEY) : le frontend
+      doit envoyer un header X-App-Key correspondant. Ce n'est PAS
+      un vrai secret (elle est visible dans le JS livré au
+      navigateur), mais elle bloque les appels directs "au hasard"
+      (scripts, scans automatiques) qui ne passent pas par l'appli.
+   3. Limite de débit : un nombre de requêtes IA par adresse IP,
+      pour plafonner l'impact d'un abus même avec la clé.
+
+   Tant que APP_SHARED_KEY n'est pas défini côté serveur (Railway),
+   la vérification de clé est désactivée (pour ne pas casser l'appli
+   avant que la variable soit configurée des deux côtés — voir
+   .env.example pour l'ordre de déploiement à respecter).
+======================================================= */
+
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS || "https://smart-standard.vercel.app"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Requêtes sans origine (curl, Postman, appels serveur-à-serveur) :
+      // on les laisse passer, elles ne sont de toute façon pas soumises
+      // à la politique CORS des navigateurs.
+      if (!origin) return callback(null, true);
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Origine non autorisée par CORS"));
+    },
+  })
+);
+
+// Sans ce gestionnaire, une origine refusée par CORS remonte comme une
+// erreur Express générique (page HTML avec la stack trace du serveur).
+// On répond ici proprement en JSON, sans exposer de détails internes.
+app.use((err, req, res, next) => {
+  if (err && err.message === "Origine non autorisée par CORS") {
+    return res.status(403).json({ result: "Origine non autorisée." });
+  }
+  next(err);
+});
+
 app.use(express.json({ limit: "10mb" }));
+
+function requireAppKey(req, res, next) {
+  const expectedKey = process.env.APP_SHARED_KEY;
+  // Pas encore configuré côté serveur : on ne bloque personne (voir
+  // .env.example pour activer cette protection en toute sécurité).
+  if (!expectedKey) return next();
+
+  const providedKey = req.header("x-app-key");
+  if (providedKey !== expectedKey) {
+    return res.status(401).json({ result: "Accès non autorisé." });
+  }
+  next();
+}
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 heure
+  max: 30, // 30 requêtes IA par adresse IP et par heure
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    result:
+      "Trop de requêtes IA depuis cette adresse ces dernières minutes, réessaie plus tard.",
+  },
+});
+
+app.use("/api/", aiLimiter, requireAppKey);
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
