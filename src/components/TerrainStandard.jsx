@@ -1,7 +1,7 @@
 import { useState } from "react";
 import GeneratedStandard from "./GeneratedStandard";
 import StandardsLibrary from "./StandardsLibrary";
-import { API_BASE_URL } from "../config";
+import { apiFetch } from "../config";
 import { compressImage } from "../utils/compressImage";
 
 export default function TerrainStandard() {
@@ -160,22 +160,19 @@ export default function TerrainStandard() {
       setLoading(true);
       setResult(null);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/generate-terrain-standard`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title,
-            zone,
-            machine,
-            objective,
-            steps,
-          }),
-        }
-      );
+      const response = await apiFetch("/api/generate-terrain-standard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          zone,
+          machine,
+          objective,
+          steps,
+        }),
+      });
 
       const data = await response.json();
       setResult(data);
