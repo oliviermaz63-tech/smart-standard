@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { API_BASE_URL } from "../config";
+import { apiFetch } from "../config";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -94,16 +94,13 @@ export default function ImportStandard({ onBack }) {
       setLoading(true);
       setAnalysis("");
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/analyze-imported-standard`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ importedText }),
-        }
-      );
+      const response = await apiFetch("/api/analyze-imported-standard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ importedText }),
+      });
 
       const data = await response.json();
       setAnalysis(data.result || "Aucune analyse retournée.");

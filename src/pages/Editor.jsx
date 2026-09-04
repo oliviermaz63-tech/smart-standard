@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API_BASE_URL } from "../config";
+import { apiFetch } from "../config";
 import { PhotoUpload } from "../components/TerrainStandard";
 import { compressImage } from "../utils/compressImage";
 import { exportStandardToWord } from "../utils/exportWord";
@@ -513,7 +513,7 @@ export default function Editor({ onBack }) {
       setLoadingAI(true);
       setAiResult("");
 
-      const response = await fetch(`${API_BASE_URL}/api/improve-standard`, {
+      const response = await apiFetch("/api/improve-standard", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
