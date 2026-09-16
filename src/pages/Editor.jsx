@@ -275,6 +275,7 @@ export default function Editor({ onBack }) {
   const [loadingAI, setLoadingAI] = useState(false);
   const [exampleModal, setExampleModal] = useState(null);
   const [exportingWord, setExportingWord] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   useEffect(() => {
     const savedDraft = localStorage.getItem(STORAGE_KEY);
@@ -485,6 +486,22 @@ export default function Editor({ onBack }) {
       alert("Impossible de générer le fichier Word, réessaie.");
     } finally {
       setExportingWord(false);
+    }
+  }
+
+  async function exportExcel() {
+    setExportingExcel(true);
+    try {
+      // Chargé à la demande : exceljs est une grosse dépendance et ne doit
+      // pas alourdir le chargement initial de l'appli pour tout le monde,
+      // ni dépasser la limite de précache du Service Worker (PWA).
+      const { exportStandardToExcel } = await import("../utils/exportExcel");
+      await exportStandardToExcel(trame, standard, steps);
+    } catch (error) {
+      console.error("Erreur export Excel :", error);
+      alert("Impossible de générer le fichier Excel, réessaie.");
+    } finally {
+      setExportingExcel(false);
     }
   }
 
@@ -1990,6 +2007,16 @@ export default function Editor({ onBack }) {
                   {exportingWord
                     ? "Génération du Word…"
                     : "Exporter en Word (.docx)"}
+                </button>
+
+                <button
+                  onClick={exportExcel}
+                  disabled={exportingExcel}
+                  className="px-4 py-2 rounded-xl bg-green-700 text-white hover:bg-green-800 disabled:opacity-60"
+                >
+                  {exportingExcel
+                    ? "Génération de l’Excel…"
+                    : "Exporter en Excel (.xlsx)"}
                 </button>
 
                 <button
