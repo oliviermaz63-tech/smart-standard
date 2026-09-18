@@ -28,12 +28,19 @@ export default function Home({ setView }) {
 
         </div>
 
-        <div className="mt-8">
+        <div className="mt-8 flex flex-wrap gap-3">
           <button
             onClick={() => setView("terrain")}
             className="px-6 py-4 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
           >
             📸 Mode Terrain
+          </button>
+
+          <button
+            onClick={() => setView("library")}
+            className="px-6 py-4 rounded-xl bg-white border font-semibold text-slate-900 hover:bg-slate-50"
+          >
+            📚 Bibliothèque de standards
           </button>
         </div>
 

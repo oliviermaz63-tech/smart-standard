@@ -265,7 +265,7 @@ const EXAMPLE_DATA = {
   },
 };
 
-export default function Editor({ onBack }) {
+export default function Editor({ onBack, openStandard }) {
   const [trame, setTrame] = useState(null);
   const [standard, setStandard] = useState(emptyStandard);
   const [steps, setSteps] = useState([emptyStep]);
@@ -278,6 +278,17 @@ export default function Editor({ onBack }) {
   const [exportingExcel, setExportingExcel] = useState(false);
 
   useEffect(() => {
+    // Rouvrir un standard depuis la bibliothèque (prioritaire sur le
+    // brouillon en cours) : on le traite comme le nouveau brouillon actif,
+    // pour que l'autosauvegarde et tout le reste du composant continuent
+    // de fonctionner normalement une fois rouvert.
+    if (openStandard) {
+      setStandard({ ...emptyStandard, ...(openStandard.standard || {}) });
+      setSteps(openStandard.steps || [emptyStep]);
+      setTrame(openStandard.trame || "classique");
+      return;
+    }
+
     const savedDraft = localStorage.getItem(STORAGE_KEY);
     if (savedDraft) {
       const parsedDraft = JSON.parse(savedDraft);
@@ -288,6 +299,7 @@ export default function Editor({ onBack }) {
       // l'expérience des standards déjà en cours de rédaction.
       setTrame(parsedDraft.trame || "classique");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -513,6 +525,7 @@ export default function Editor({ onBack }) {
     const newStandard = {
       id: Date.now(),
       createdAt: new Date().toISOString(),
+      trame,
       standard,
       steps,
     };
