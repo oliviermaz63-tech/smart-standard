@@ -110,7 +110,6 @@ app.post("/api/analyze-imported-standard", async (req, res) => {
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      temperature: 0.3,
       messages: [
         {
           role: "system",
@@ -210,7 +209,6 @@ ${JSON.stringify(steps, null, 2)}
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      temperature: 0.15,
       response_format: {
         type: "json_object",
       },
@@ -474,7 +472,6 @@ Analyse ce standard :
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      temperature: 0.3,
       messages: [
         {
           role: "system",
