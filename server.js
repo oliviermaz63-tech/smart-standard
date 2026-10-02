@@ -110,7 +110,7 @@ app.post("/api/analyze-imported-standard", async (req, res) => {
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      reasoning_effort: "low",
+      reasoning_effort: "none",
       messages: [
         {
           role: "system",
@@ -189,28 +189,42 @@ Réponds en français avec :
 
 app.post("/api/generate-terrain-standard", async (req, res) => {
   try {
-    const { title, zone, machine, objective, steps } = req.body;
+    const { title, zone, machine, objective, steps, trame } = req.body;
+    const trameKey = trame || "classique";
+
+    const TRAME_GUIDANCE = {
+      classique:
+        "Trame CLASSIQUE : priorise standard.safety, standard.quality, standard.materials, standard.control (consignes générales), et pour chaque step remplis title, description, safety, quality, duration.",
+      instruction_travail:
+        "Trame INSTRUCTION DE TRAVAIL : format compact fiche de poste. Remplis standard.reference et standard.date si déductibles, et pour chaque step remplis surtout title, description et duration (temps estimé si déductible, sinon laisse vide).",
+      gamme_nettoyage:
+        "Trame GAMME DE NETTOYAGE : remplis standard.unite, standard.equipements (avec la machine/poste fournie), standard.periodicite si déductible. Pour chaque step remplis title, description, conditions (ex: 'OC' = organe en contact, 'A' = autour), tooling (matériel de nettoyage utilisé), outOfStandard (action corrective si hors standard).",
+      mode_operatoire:
+        "Trame MODE OPÉRATOIRE : plusieurs opérateurs se partagent les opérations. Remplis standard.operators (liste de noms d'opérateurs, déduis-en un nombre raisonnable si non précisé, ex: ['Opérateur A','Opérateur B']). Pour chaque step remplis title, description, operatorFlags (tableau de booléens de la même longueur que standard.operators, true pour les opérateurs concernés par cette étape), category ('ehs' ou 'quality' ou vide), keyPoints (point clé à retenir).",
+    };
 
     const terrainData = `
+TRAME CHOISIE : ${trameKey}
+
 TITRE :
 ${title}
 
 ZONE :
 ${zone}
 
-MACHINE :
+MACHINE / POSTE :
 ${machine}
 
 OBJECTIF :
 ${objective}
 
-ETAPES TERRAIN :
+ETAPES TERRAIN (observations brutes de l'opérateur, un objet par étape) :
 ${JSON.stringify(steps, null, 2)}
 `;
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      reasoning_effort: "low",
+      reasoning_effort: "none",
       response_format: {
         type: "json_object",
       },
@@ -319,6 +333,11 @@ Génère quand même le standard à partir des données disponibles, en indiquan
 Si score >= 70, statut = OK.
 Tu peux générer le standard, mais tu dois garder les limites visibles.
 
+CONSIGNE SPÉCIFIQUE À LA TRAME CHOISIE :
+${TRAME_GUIDANCE[trameKey] || TRAME_GUIDANCE.classique}
+
+Le standard généré doit respecter le format ci-dessous, qui est le même format que celui utilisé par l'éditeur manuel de Smart Standard (pour que ce standard soit ensuite modifiable et exportable en Word/Excel exactement comme un standard rédigé à la main). Ne remplis que les champs pertinents pour la trame choisie ci-dessus ; laisse les autres en chaîne vide "" (ou tableau vide []). N'invente jamais de valeur pour un champ que les données terrain ne permettent pas de déduire : laisse-le vide plutôt que de l'inventer.
+
 FORMAT JSON STRICT :
 
 {
@@ -337,34 +356,42 @@ FORMAT JSON STRICT :
     "missingData": [],
     "recommendationsBeforeUse": []
   },
-  "general": {
+  "standard": {
     "title": "...",
     "zone": "...",
-    "machine": "...",
-    "objective": "..."
-  },
-  "leanAnalysis": {
-    "risks": [],
-    "muda": [],
-    "qualityRisks": [],
-    "safetyRisks": [],
-    "trainingRisks": []
+    "owner": "",
+    "reference": "",
+    "date": "",
+    "objective": "...",
+    "safety": "",
+    "quality": "",
+    "materials": "",
+    "control": "",
+    "unite": "",
+    "equipements": "",
+    "periodicite": "",
+    "autres": "",
+    "accordResponsable": "",
+    "operators": ["Opérateur A", "Opérateur B"]
   },
   "steps": [
     {
-      "number": 1,
-      "operation": "...",
-      "safety": "...",
-      "quality": "...",
-      "reaction": "...",
-      "time": "...",
-      "okCriteria": "...",
-      "nokCriteria": "...",
-      "visualNeed": "Photo OK/NOK nécessaire ou non",
-      "confidenceComment": "..."
+      "title": "Titre court de l'opération",
+      "description": "...",
+      "safety": "",
+      "quality": "",
+      "duration": "",
+      "conditions": "",
+      "tooling": "",
+      "outOfStandard": "",
+      "operatorFlags": [false, false],
+      "category": "",
+      "keyPoints": ""
     }
   ]
 }
+
+Le tableau "steps" doit contenir exactement une entrée par étape terrain fournie en entrée, dans le même ordre.
 
 Réponds uniquement en JSON valide.
 `,
@@ -390,8 +417,7 @@ Réponds uniquement en JSON valide.
         missingData: ["Impossible de générer le standard"],
         recommendationsBeforeUse: [],
       },
-      general: {},
-      leanAnalysis: {},
+      standard: {},
       steps: [],
     });
   }
@@ -474,7 +500,7 @@ Analyse ce standard :
 
     const completion = await client.chat.completions.create({
       model: "gpt-5.6-terra",
-      reasoning_effort: "low",
+      reasoning_effort: "none",
       messages: [
         {
           role: "system",
