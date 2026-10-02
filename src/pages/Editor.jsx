@@ -265,7 +265,7 @@ const EXAMPLE_DATA = {
   },
 };
 
-export default function Editor({ onBack, openStandard }) {
+export default function Editor({ onBack, openStandard, presetTrame }) {
   const [trame, setTrame] = useState(null);
   const [standard, setStandard] = useState(emptyStandard);
   const [steps, setSteps] = useState([emptyStep]);
@@ -285,7 +285,7 @@ export default function Editor({ onBack, openStandard }) {
     if (openStandard) {
       setStandard({ ...emptyStandard, ...(openStandard.standard || {}) });
       setSteps(openStandard.steps || [emptyStep]);
-      setTrame(openStandard.trame || "classique");
+      setTrame(openStandard.trame || presetTrame || "classique");
       return;
     }
 
@@ -297,7 +297,15 @@ export default function Editor({ onBack, openStandard }) {
       // Les brouillons enregistrés avant l'ajout des trames n'ont pas ce
       // champ : on les rattache à la trame classique pour ne pas casser
       // l'expérience des standards déjà en cours de rédaction.
-      setTrame(parsedDraft.trame || "classique");
+      setTrame(parsedDraft.trame || presetTrame || "classique");
+      return;
+    }
+
+    // Arrivée depuis le nouveau parcours (choix de trame en amont) : on
+    // démarre directement sur cette trame, sans repasser par le sélecteur
+    // interne de trame.
+    if (presetTrame) {
+      setTrame(presetTrame);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1285,12 +1293,12 @@ export default function Editor({ onBack, openStandard }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen px-6 py-10">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-6 print:hidden">
           <button
             onClick={onBack}
-            className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
+            className="btn-secondary px-4 py-2"
           >
             ← Retour
           </button>
@@ -1931,7 +1939,7 @@ export default function Editor({ onBack, openStandard }) {
             <div className="mt-6 flex flex-wrap gap-4">
               <button
                 onClick={generateStandard}
-                className="px-6 py-4 rounded-xl bg-slate-950 text-white font-semibold hover:bg-slate-800"
+                className="btn-primary px-6 py-4"
               >
                 Générer l’aperçu du standard
               </button>
@@ -2007,7 +2015,7 @@ export default function Editor({ onBack, openStandard }) {
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={printStandard}
-                  className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800"
+                  className="btn-dark px-4 py-2"
                 >
                   Imprimer / Export PDF
                 </button>
@@ -2015,7 +2023,7 @@ export default function Editor({ onBack, openStandard }) {
                 <button
                   onClick={exportWord}
                   disabled={exportingWord}
-                  className="px-4 py-2 rounded-xl bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-60"
+                  className="btn-primary px-4 py-2 disabled:opacity-60"
                 >
                   {exportingWord
                     ? "Génération du Word…"
@@ -2025,7 +2033,7 @@ export default function Editor({ onBack, openStandard }) {
                 <button
                   onClick={exportExcel}
                   disabled={exportingExcel}
-                  className="px-4 py-2 rounded-xl bg-green-700 text-white hover:bg-green-800 disabled:opacity-60"
+                  className="btn-primary px-4 py-2 disabled:opacity-60"
                 >
                   {exportingExcel
                     ? "Génération de l’Excel…"
@@ -2034,14 +2042,14 @@ export default function Editor({ onBack, openStandard }) {
 
                 <button
                   onClick={saveToLibrary}
-                  className="px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
+                  className="btn-secondary px-4 py-2"
                 >
                   Sauvegarder dans la bibliothèque
                 </button>
 
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 border hover:bg-slate-200"
+                  className="btn-secondary px-4 py-2"
                 >
                   Masquer
                 </button>

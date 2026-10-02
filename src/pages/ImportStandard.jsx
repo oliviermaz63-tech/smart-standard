@@ -113,24 +113,27 @@ export default function ImportStandard({ onBack }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen px-6 py-10">
       <div className="max-w-7xl mx-auto">
         <button
           onClick={onBack}
-          className="mb-6 px-4 py-2 rounded-xl bg-white border hover:bg-slate-50"
+          className="btn-secondary mb-6 px-4 py-2"
         >
           ← Retour
         </button>
 
-        <h1 className="text-5xl font-bold text-slate-900">
-          Importer un standard existant
-        </h1>
+        <div className="ss-hero px-8 py-10 mb-8">
+          <div className="ss-hero-blob -right-12 -top-12 w-56 h-56" />
+          <h1 className="relative z-10 text-3xl font-bold">
+            Importer un standard existant
+          </h1>
 
-        <p className="mt-3 text-slate-600 text-lg">
-          Import PDF, Excel ou texte pour analyse Lean IA.
-        </p>
+          <p className="relative z-10 mt-3 text-indigo-50 text-lg">
+            Import PDF, Excel ou texte pour analyse Lean IA.
+          </p>
+        </div>
 
-        <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+        <section className="ss-card p-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">
             Standard à analyser
           </h2>
@@ -168,7 +171,7 @@ export default function ImportStandard({ onBack }) {
           <button
             onClick={analyzeImportedStandard}
             disabled={loading || importedText.trim() === ""}
-            className="mt-6 px-8 py-5 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-50"
+            className="btn-primary mt-6 px-8 py-5 text-lg disabled:opacity-50"
           >
             {loading
               ? "Analyse IA en cours..."
@@ -177,7 +180,7 @@ export default function ImportStandard({ onBack }) {
         </section>
 
         {analysis && (
-          <section className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+          <section className="ss-card mt-8 p-8">
             <h2 className="text-3xl font-bold text-slate-900 mb-6">
               Analyse IA du standard importé
             </h2>

@@ -24,29 +24,31 @@ export default function Library({ onBack, onOpenStandard }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen px-6 py-10">
       <div className="max-w-6xl mx-auto">
-        <button onClick={onBack} className="mb-6 px-4 py-2 rounded-xl bg-white border">
+        <button onClick={onBack} className="btn-secondary mb-6 px-4 py-2">
           ← Retour
         </button>
 
-        <h1 className="text-4xl font-bold text-slate-900">Bibliothèque de standards</h1>
-        <p className="mt-2 text-slate-600">
-          Les standards sauvegardés depuis l’éditeur (bouton « Sauvegarder dans la
-          bibliothèque »). Sauvegarde locale à ce navigateur uniquement.
-        </p>
+        <div className="ss-hero px-8 py-10 mb-8">
+          <div className="ss-hero-blob -right-12 -top-12 w-56 h-56" />
+          <h1 className="relative z-10 text-3xl font-bold">Bibliothèque de standards</h1>
+          <p className="relative z-10 mt-2 text-indigo-50">
+            Les standards sauvegardés depuis l'éditeur (mode Terrain ou mode manuel). Sauvegarde locale à ce navigateur uniquement.
+          </p>
+        </div>
 
-        <div className="mt-8 grid gap-4">
+        <div className="grid gap-4">
           {standards.length === 0 && (
-            <div className="bg-white rounded-2xl p-6 border">
-              Aucun standard sauvegardé pour l’instant.
+            <div className="ss-card p-6">
+              Aucun standard sauvegardé pour l'instant.
             </div>
           )}
 
           {standards.map((item) => (
             <div
               key={item.id}
-              className="bg-white rounded-2xl p-6 border shadow-sm flex flex-wrap items-center justify-between gap-4"
+              className="ss-card p-6 flex flex-wrap items-center justify-between gap-4"
             >
               <div>
                 <h2 className="text-2xl font-bold">{item.standard.title || "Standard sans titre"}</h2>
@@ -62,9 +64,9 @@ export default function Library({ onBack, onOpenStandard }) {
               <div className="flex gap-3">
                 <button
                   onClick={() => onOpenStandard(item)}
-                  className="px-4 py-2 rounded-xl bg-slate-950 text-white hover:bg-slate-800"
+                  className="btn-primary px-4 py-2"
                 >
-                  Rouvrir dans l’éditeur
+                  Rouvrir dans l'éditeur
                 </button>
                 <button
                   onClick={() => deleteStandard(item.id)}
