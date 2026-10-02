@@ -1,5 +1,110 @@
 @import "tailwindcss";
 
+/* =======================================================
+   IDENTITÉ VISUELLE SMART STANDARD
+   Dégradé bleu/violet + accent orange, fond gris clair.
+======================================================= */
+
+body {
+  background: #e8ecf1;
+}
+
+@layer components {
+  /* Bandeau d'en-tête en dégradé, utilisé en haut de chaque écran principal. */
+  .ss-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem;
+    background-image: linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #7c3aed 100%);
+    color: #fff;
+    box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.35), 0 8px 10px -6px rgba(79, 70, 229, 0.25);
+  }
+
+  .ss-hero-blob {
+    position: absolute;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.1);
+    pointer-events: none;
+  }
+
+  /* Badge d'icône en dégradé, utilisé dans les cartes de choix. */
+  .ss-icon-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    background-image: linear-gradient(135deg, #6366f1, #8b5cf6);
+  }
+
+  /* Carte blanche standard (contenu au-dessus du fond gris clair). */
+  .ss-card {
+    background: #fff;
+    border-radius: 1.5rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Bouton d'action principal, dégradé orange. */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 1rem;
+    background-image: linear-gradient(90deg, #f97316, #f59e0b);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(249, 115, 22, 0.35);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 6px 14px rgba(249, 115, 22, 0.45);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Bouton secondaire, blanc/neutre. */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    color: #0f172a;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: background-color 0.15s ease;
+  }
+
+  .btn-secondary:hover {
+    background: #f8fafc;
+  }
+
+  /* Bouton sombre (actions secondaires fortes, ex: "Changer de trame"). */
+  .btn-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 1rem;
+    background: #0f172a;
+    color: #fff;
+    font-weight: 700;
+    transition: background-color 0.15s ease;
+  }
+
+  .btn-dark:hover {
+    background: #1e293b;
+  }
+}
+
 @media print {
 
   @page {
