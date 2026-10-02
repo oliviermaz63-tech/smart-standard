@@ -1,10 +1,9 @@
 import { useState } from "react";
-import GeneratedStandard from "./GeneratedStandard";
-import StandardsLibrary from "./StandardsLibrary";
 import { apiFetch } from "../config";
 import { compressImage } from "../utils/compressImage";
+import { TRAMES } from "../data/trames";
 
-export default function TerrainStandard() {
+export default function TerrainStandard({ trame, onBack, onGenerated }) {
   const [title, setTitle] = useState("");
   const [zone, setZone] = useState("");
   const [machine, setMachine] = useState("");
@@ -13,6 +12,8 @@ export default function TerrainStandard() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [listening, setListening] = useState(null);
+
+  const trameInfo = TRAMES[trame] || TRAMES.classique;
 
   function addStep() {
     setSteps([
@@ -123,7 +124,7 @@ export default function TerrainStandard() {
       {
         id: Date.now() + 1,
         description:
-          "Positionner la pièce sous l’éclairage LED de contrôle à une distance d’environ 30 cm.",
+          "Positionner la pièce sous l'éclairage LED de contrôle à une distance d'environ 30 cm.",
         preview: null,
         okPreview: null,
         nokPreview: null,
@@ -131,7 +132,7 @@ export default function TerrainStandard() {
       {
         id: Date.now() + 2,
         description:
-          "Contrôler l’absence de rayure visible supérieure à 2 mm sur les faces A et B à l’aide de la photo de référence OK.",
+          "Contrôler l'absence de rayure visible supérieure à 2 mm sur les faces A et B à l'aide de la photo de référence OK.",
         preview: null,
         okPreview: null,
         nokPreview: null,
@@ -139,7 +140,7 @@ export default function TerrainStandard() {
       {
         id: Date.now() + 3,
         description:
-          "Contrôler l’absence de bavure coupante détectable au toucher avec gant nitrile sur les zones d’usinage.",
+          "Contrôler l'absence de bavure coupante détectable au toucher avec gant nitrile sur les zones d'usinage.",
         preview: null,
         okPreview: null,
         nokPreview: null,
@@ -153,6 +154,30 @@ export default function TerrainStandard() {
         nokPreview: null,
       },
     ]);
+  }
+
+  // Combine le standard rédigé par l'IA avec les photos prises sur le
+  // terrain (l'IA ne génère que du texte, jamais d'image) pour produire un
+  // standard exploitable tel quel dans l'éditeur.
+  function mergeStepsWithPhotos(aiSteps) {
+    return (aiSteps || []).map((step, index) => ({
+      id: Date.now() + index,
+      title: step.title || `Étape ${index + 1}`,
+      description: step.description || "",
+      safety: step.safety || "",
+      quality: step.quality || "",
+      duration: step.duration || "",
+      preview: steps[index]?.preview || null,
+      preview2: null,
+      okPreview: steps[index]?.okPreview || null,
+      nokPreview: steps[index]?.nokPreview || null,
+      conditions: step.conditions || "",
+      tooling: step.tooling || "",
+      outOfStandard: step.outOfStandard || "",
+      operatorFlags: step.operatorFlags || [false, false],
+      category: step.category || "",
+      keyPoints: step.keyPoints || "",
+    }));
   }
 
   async function generateStandard() {
@@ -171,6 +196,7 @@ export default function TerrainStandard() {
           machine,
           objective,
           steps,
+          trame,
         }),
       });
 
@@ -184,60 +210,55 @@ export default function TerrainStandard() {
     }
   }
 
-  function saveStandard() {
-    try {
-      const raw = localStorage.getItem("smartstandards");
-      const existing = raw ? JSON.parse(raw) : [];
-
-      const newStandard = {
-        id: Date.now(),
-        createdAt: new Date().toISOString(),
-        result,
-        inputSteps: steps,
-      };
-
-      localStorage.setItem(
-        "smartstandards",
-        JSON.stringify([newStandard, ...existing])
-      );
-
-      alert("Standard sauvegardé");
-    } catch (error) {
-      console.error("Erreur sauvegarde standard :", error);
-      alert(
-        "Impossible de sauvegarder (stockage local indisponible ou plein). Essaie en dehors de la navigation privée, ou libère de l'espace sur ton téléphone."
-      );
-    }
+  function continueToEditor() {
+    if (!result) return;
+    onGenerated({
+      trame,
+      standard: { ...(result.standard || {}), machine },
+      steps: mergeStepsWithPhotos(result.steps),
+    });
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
 
-        <div className="flex flex-wrap justify-between items-start gap-4">
-          <div>
-            <p className="uppercase tracking-widest text-sm text-slate-500 font-bold">
-              Smart Standard
-            </p>
-
-            <h1 className="text-4xl font-black mt-2">
-              📸🎤 Création standard terrain IA
-            </h1>
-
-            <p className="text-slate-600 mt-2 text-lg max-w-3xl">
-              Photos + notes + dictée vocale terrain → standard industriel robuste, visuel et auditables.
-            </p>
-          </div>
-
-          <button
-            onClick={fillDemo}
-            className="px-6 py-4 rounded-2xl bg-slate-900 text-white font-bold"
-          >
-            ⚡ Charger une démo
+        <div className="flex items-center justify-between gap-4">
+          <button onClick={onBack} className="btn-secondary px-4 py-2">
+            ← Retour
           </button>
+          <p className="text-slate-500 text-sm">
+            Trame choisie : <strong className="text-slate-900">{trameInfo.label}</strong>
+          </p>
         </div>
 
-        <div className="bg-white rounded-3xl border shadow-sm p-6 space-y-5">
+        <div className="ss-hero px-8 py-8">
+          <div className="ss-hero-blob -right-12 -top-12 w-56 h-56" />
+          <div className="relative z-10 flex flex-wrap justify-between items-start gap-4">
+            <div>
+              <p className="uppercase tracking-widest text-sm text-indigo-100 font-bold">
+                Smart Standard
+              </p>
+
+              <h1 className="text-3xl font-black mt-2">
+                📸🎤 Création standard terrain IA
+              </h1>
+
+              <p className="text-indigo-50 mt-2 text-lg max-w-3xl">
+                Photos + notes + dictée vocale terrain → l'IA rédige le standard, dans la trame « {trameInfo.label} ».
+              </p>
+            </div>
+
+            <button
+              onClick={fillDemo}
+              className="btn-secondary px-6 py-4"
+            >
+              ⚡ Charger une démo
+            </button>
+          </div>
+        </div>
+
+        <div className="ss-card p-6 space-y-5">
           <h2 className="text-2xl font-black">Informations générales</h2>
 
           <div className="grid md:grid-cols-3 gap-4">
@@ -268,7 +289,7 @@ export default function TerrainStandard() {
 
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="font-bold">Objectif de l’opération</label>
+              <label className="font-bold">Objectif de l'opération</label>
 
               <button
                 onClick={() => startVoice("objective")}
@@ -283,7 +304,7 @@ export default function TerrainStandard() {
             </div>
 
             <textarea
-              placeholder="Décrire l’objectif ou dicter avec le micro..."
+              placeholder="Décrire l'objectif ou dicter avec le micro..."
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
               className="w-full border rounded-xl p-4 h-28"
@@ -291,7 +312,7 @@ export default function TerrainStandard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border shadow-sm p-6">
+        <div className="ss-card p-6">
           <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-black">Étapes terrain</h2>
@@ -302,7 +323,7 @@ export default function TerrainStandard() {
 
             <button
               onClick={addStep}
-              className="bg-slate-900 text-white px-5 py-3 rounded-xl font-bold"
+              className="btn-dark px-5 py-3"
             >
               + Ajouter une étape
             </button>
@@ -327,14 +348,14 @@ export default function TerrainStandard() {
                         : "bg-blue-600 text-white"
                     }`}
                   >
-                    🎤 {listening === step.id ? "Écoute..." : "Dicter l’étape"}
+                    🎤 {listening === step.id ? "Écoute..." : "Dicter l'étape"}
                   </button>
                 </div>
 
                 <div className="grid xl:grid-cols-2 gap-6 p-6">
                   <div>
                     <textarea
-                      placeholder="Décrire précisément l’étape observée terrain..."
+                      placeholder="Décrire précisément l'étape observée terrain..."
                       value={step.description}
                       onChange={(e) =>
                         updateStep(step.id, "description", e.target.value)
@@ -343,7 +364,7 @@ export default function TerrainStandard() {
                     />
 
                     <p className="mt-3 text-sm text-slate-500">
-                      Conseil : préciser action, condition d’observation, critère OK/NOK, réaction en cas d’écart.
+                      Conseil : préciser action, condition d'observation, critère OK/NOK, réaction en cas d'écart.
                     </p>
                   </div>
 
@@ -387,20 +408,89 @@ export default function TerrainStandard() {
         <div className="flex justify-center">
           <button
             onClick={generateStandard}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-12 py-6 rounded-3xl text-2xl font-black shadow-xl"
+            disabled={loading || steps.length === 0}
+            className="btn-primary disabled:opacity-50 px-12 py-6 text-2xl"
           >
             {loading ? "Analyse terrain IA..." : "🚀 Générer Smart Standard"}
           </button>
         </div>
 
-        <GeneratedStandard
-          result={result}
-          inputSteps={steps}
-          onSave={saveStandard}
-        />
+        {result && (
+          <div className={`ss-card overflow-hidden border-2 ${
+            result.validation?.status === "OK" ? "border-green-300" : "border-red-300"
+          }`}>
+            <div className={`px-6 py-5 flex flex-wrap justify-between items-center gap-4 ${
+              result.validation?.status === "OK" ? "bg-green-50" : "bg-red-50"
+            }`}>
+              <div>
+                <p className="uppercase tracking-widest text-xs font-bold text-slate-500">
+                  Smart Standard AI Validation
+                </p>
+                <h2 className="text-2xl font-black mt-2">
+                  {result.validation?.status === "OK"
+                    ? "✅ Validation terrain acceptable"
+                    : "❌ Validation terrain insuffisante"}
+                </h2>
+              </div>
 
-        <StandardsLibrary />
+              <div className="text-right">
+                <p className="text-sm text-slate-500 font-bold uppercase">Score IA</p>
+                <p className={`text-5xl font-black ${
+                  result.validation?.score >= 80
+                    ? "text-green-600"
+                    : result.validation?.score >= 70
+                    ? "text-orange-500"
+                    : "text-red-600"
+                }`}>
+                  {result.validation?.score}%
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 space-y-6">
+              {result.validation?.problems?.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-3">⚠️ Problèmes détectés</h3>
+                  <ul className="list-disc pl-6 space-y-2">
+                    {result.validation.problems.map((problem, index) => (
+                      <li key={index}>{problem}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result.validation?.weakWords?.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-bold mb-4">🧠 Formulations faibles détectées</h3>
+                  <div className="grid xl:grid-cols-2 gap-4">
+                    {result.validation.weakWords.map((word, index) => (
+                      <div key={index} className="border rounded-2xl p-5 bg-slate-50">
+                        <p className="font-black text-red-600 text-lg">{word.word}</p>
+                        <p className="mt-2 text-slate-700">{word.whyProblem}</p>
+                        <div className="mt-4 bg-white border rounded-xl p-4">
+                          <p className="text-sm uppercase tracking-widest text-slate-400 font-bold">
+                            Clarification attendue
+                          </p>
+                          <p className="mt-2">{word.requiredClarification}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3 justify-end pt-4 border-t">
+                <button onClick={() => setResult(null)} className="btn-secondary px-6 py-4">
+                  Modifier mes observations
+                </button>
+                <button onClick={continueToEditor} className="btn-primary px-8 py-4 text-lg">
+                  Continuer vers l'éditeur →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
