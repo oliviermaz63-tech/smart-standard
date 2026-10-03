@@ -219,6 +219,12 @@ OBJECTIF :
 ${objective}
 
 ETAPES TERRAIN (observations brutes de l'opérateur, un objet par étape) :
+Chaque étape a une description texte, et trois indicateurs booléens
+(hasPhotoTerrain, hasPhotoOK, hasPhotoNOK) qui précisent si l'opérateur a
+pris une photo terrain / une photo de référence OK / une photo de référence
+NOK pour cette étape - tu ne reçois jamais les photos elles-mêmes, seulement
+le fait qu'elles existent ou non, à utiliser pour juger si un contrôle visuel
+dispose bien d'une référence photo.
 ${JSON.stringify(steps, null, 2)}
 `;
 
