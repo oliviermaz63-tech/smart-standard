@@ -185,6 +185,24 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
       setLoading(true);
       setResult(null);
 
+      // On n'envoie jamais les photos elles-mêmes à l'IA : elle n'en a pas
+      // besoin (le texte seul suffit à rédiger le standard, et les photos
+      // terrain sont de toute façon réinjectées localement après coup par
+      // mergeStepsWithPhotos). On envoie juste un indicateur de présence
+      // pour chaque type de photo, utile à l'IA pour ses remarques sur les
+      // contrôles visuels sans photo de référence.
+      // Important : ne JAMAIS remettre les champs preview/okPreview/
+      // nokPreview (base64) dans ce payload - une poignée de photos de
+      // téléphone suffit à produire un prompt de plusieurs Mo de texte,
+      // ce qui fait échouer l'appel IA (dépassement de la taille de
+      // contexte autorisée) sans message d'erreur clair pour l'utilisateur.
+      const sanitizedSteps = steps.map((step) => ({
+        description: step.description,
+        hasPhotoTerrain: !!step.preview,
+        hasPhotoOK: !!step.okPreview,
+        hasPhotoNOK: !!step.nokPreview,
+      }));
+
       const response = await apiFetch("/api/generate-terrain-standard", {
         method: "POST",
         headers: {
@@ -195,7 +213,7 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
           zone,
           machine,
           objective,
-          steps,
+          steps: sanitizedSteps,
           trame,
         }),
       });
