@@ -312,13 +312,30 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
 
   useEffect(() => {
     if (!trame) return;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ trame, standard, steps })
-    );
-    setSavedMessage("Brouillon sauvegardé automatiquement");
 
-    const timer = setTimeout(() => setSavedMessage(""), 1500);
+    // Important : localStorage a une limite totale (~5 Mo sur Safari iOS).
+    // Un standard avec plusieurs photos par étape (terrain/OK/NOK) peut
+    // facilement dépasser cette limite une fois encodées en base64. Sans ce
+    // try/catch, l'erreur levée par setItem (QuotaExceededError) n'est
+    // rattrapée nulle part : elle casse ce useEffect silencieusement, ce qui
+    // peut bloquer l'affichage (ex: juste après l'arrivée depuis le Mode
+    // Terrain, où ce useEffect se déclenche immédiatement avec les photos du
+    // standard généré) et donner l'impression que l'appli "ne fait rien" ou
+    // repart de zéro, sans aucun message d'erreur pour l'utilisateur.
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ trame, standard, steps })
+      );
+      setSavedMessage("Brouillon sauvegardé automatiquement");
+    } catch (error) {
+      console.error("Erreur sauvegarde automatique :", error);
+      setSavedMessage(
+        "⚠️ Brouillon trop volumineux pour la sauvegarde automatique (trop de photos) — exporte-le ou sauvegarde-le dans la bibliothèque sans tarder."
+      );
+    }
+
+    const timer = setTimeout(() => setSavedMessage(""), 4000);
     return () => clearTimeout(timer);
   }, [trame, standard, steps]);
 
@@ -538,12 +555,23 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
       steps,
     };
 
-    localStorage.setItem(
-      LIBRARY_KEY,
-      JSON.stringify([newStandard, ...existingLibrary])
-    );
-
-    alert("Standard sauvegardé dans la bibliothèque.");
+    // Même limite de taille que l'autosauvegarde (voir le useEffect
+    // plus haut) : avec les photos déjà accumulées dans la bibliothèque,
+    // ajouter un nouveau standard peut dépasser le quota localStorage.
+    // Sans try/catch, l'erreur empêcherait même l'alerte de s'afficher,
+    // laissant croire à tort que la sauvegarde a réussi.
+    try {
+      localStorage.setItem(
+        LIBRARY_KEY,
+        JSON.stringify([newStandard, ...existingLibrary])
+      );
+      alert("Standard sauvegardé dans la bibliothèque.");
+    } catch (error) {
+      console.error("Erreur sauvegarde bibliothèque :", error);
+      alert(
+        "Impossible de sauvegarder : la bibliothèque est trop volumineuse (trop de photos accumulées). Exporte ce standard en Word/Excel pour ne pas le perdre, puis libère de la place en supprimant d'anciens standards de la bibliothèque."
+      );
+    }
   }
 
   async function improveWithAI(mode = "standard") {
