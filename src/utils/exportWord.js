@@ -4,6 +4,11 @@
 // LibreOffice ou OpenOffice), que le client peut ensuite adapter librement —
 // contrairement au PDF généré par "Imprimer / Export PDF" qui n’est pas
 // modifiable.
+//
+// Mise en page : A4, marges 1,5 cm, police Calibri, tableaux bordés à largeur
+// fixe (rendu identique dans Word et LibreOffice), "cartes" d’étapes qui ne
+// se coupent pas entre deux pages, photos côte à côte à proportions
+// conservées, en-tête avec logo et pied de page numéroté.
 import {
   Document,
   Packer,
@@ -18,20 +23,66 @@ import {
   HeadingLevel,
   VerticalAlign,
   AlignmentType,
+  BorderStyle,
+  TableLayoutType,
+  Header,
+  Footer,
+  PageNumber,
+  TabStopType,
 } from "docx";
+import logoUrl from "../assets/smart-standard-logo.png?url";
 
 const COLORS = {
-  red: "FDECEC",
-  redText: "B42318",
-  blue: "E9F1FE",
+  navy: "0F172A",
+  indigo: "4F46E5",
+  slate: "64748B",
+  light: "F1F5F9",
+  line: "CBD5E1",
+  text: "1F2937",
+  red: "FEF2F2",
+  redText: "B91C1C",
+  blue: "EFF6FF",
   blueText: "1D4ED8",
-  amber: "FFF6DF",
+  amber: "FFFBEB",
   amberText: "92400E",
-  green: "E9FBEF",
-  greenText: "15803D",
-  headerGray: "E7EAF0",
-  titleBg: "DCE1EA",
+  green: "ECFDF5",
+  greenText: "047857",
+  headerGray: "E2E8F0",
 };
+
+const FONT = "Calibri";
+
+// Dimensions de page en twips (1/1440 pouce) : A4 avec marges de 1,5 cm.
+const MARGIN = 850;
+const PAGE_W = 11906;
+const PAGE_H = 16838;
+// Largeur utile (zone de texte) selon l’orientation.
+const CONTENT_W = { portrait: PAGE_W - 2 * MARGIN, landscape: PAGE_H - 2 * MARGIN };
+
+// Largeur utile du document en cours de construction (définie par
+// exportStandardToWord avant d’appeler le builder de la trame).
+let contentWidth = CONTENT_W.portrait;
+
+// 1 px (96 dpi, unité attendue par ImageRun) = 15 twips.
+const pxOf = (twips) => Math.floor(twips / 15);
+
+const BORDER = { style: BorderStyle.SINGLE, size: 4, color: COLORS.line };
+const BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
+const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+const NO_BORDERS = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER };
+
+let logoBytesCache = null;
+async function getLogoBytes() {
+  if (logoBytesCache) return logoBytesCache;
+  try {
+    const res = await fetch(logoUrl);
+    logoBytesCache = new Uint8Array(await res.arrayBuffer());
+  } catch (error) {
+    console.error("Logo indisponible pour l’export Word :", error);
+    logoBytesCache = null;
+  }
+  return logoBytesCache;
+}
 
 // docx exige de préciser explicitement le type d’image (il ne le déduit pas
 // du contenu binaire) : on le lit dans l’en-tête du dataURL, avec un repli
@@ -44,9 +95,10 @@ function imageTypeFromDataUrl(dataUrl) {
 }
 
 // Convertit une image (dataURL base64 déjà stockée dans le standard) en
-// octets exploitables par docx, en redimensionnant si besoin pour ne pas
-// produire un fichier Word trop lourd.
-async function loadImage(dataUrl, maxWidth = 380) {
+// octets exploitables par docx, redimensionnée pour tenir dans une boîte
+// (maxW x maxH, en pixels) en conservant ses proportions — une photo
+// portrait ne prend donc plus toute la page.
+async function loadImage(dataUrl, maxW = 380, maxH = 280) {
   if (!dataUrl) return null;
 
   try {
@@ -58,183 +110,402 @@ async function loadImage(dataUrl, maxWidth = 380) {
     const dims = await new Promise((resolve) => {
       const img = new Image();
       img.onload = () =>
-        resolve({ w: img.naturalWidth || maxWidth, h: img.naturalHeight || Math.round(maxWidth * 0.6) });
-      img.onerror = () => resolve({ w: maxWidth, h: Math.round(maxWidth * 0.6) });
+        resolve({ w: img.naturalWidth || maxW, h: img.naturalHeight || Math.round(maxW * 0.6) });
+      img.onerror = () => resolve({ w: maxW, h: Math.round(maxW * 0.6) });
       img.src = dataUrl;
     });
 
-    let width = dims.w;
-    let height = dims.h;
-    if (width > maxWidth) {
-      height = Math.round((height * maxWidth) / width);
-      width = maxWidth;
-    }
-
-    return { data: bytes, width, height, type };
+    const ratio = Math.min(maxW / dims.w, maxH / dims.h, 1);
+    return {
+      data: bytes,
+      width: Math.max(1, Math.round(dims.w * ratio)),
+      height: Math.max(1, Math.round(dims.h * ratio)),
+      type,
+    };
   } catch (error) {
     console.error("Impossible de charger une image pour l’export Word :", error);
     return null;
   }
 }
 
-async function imageParagraph(dataUrl, fallbackText) {
-  const img = await loadImage(dataUrl);
-  if (!img) {
-    return new Paragraph({
-      children: [new TextRun({ text: fallbackText || "Aucune photo", italics: true })],
-      spacing: { after: 150 },
-    });
-  }
-  return new Paragraph({
-    children: [
+// Paragraphe contenant une ou plusieurs photos alignées sur la même ligne.
+async function imagesParagraph(dataUrls, { maxW, maxH, align = AlignmentType.CENTER, keepNext = false } = {}) {
+  const runs = [];
+  for (const url of dataUrls) {
+    const img = await loadImage(url, maxW, maxH);
+    if (!img) continue;
+    if (runs.length) runs.push(new TextRun({ text: "  " }));
+    runs.push(
       new ImageRun({
         type: img.type,
         data: img.data,
         transformation: { width: img.width, height: img.height },
-      }),
-    ],
-    spacing: { after: 150 },
-  });
+      })
+    );
+  }
+  if (!runs.length) return null;
+  return new Paragraph({ alignment: align, keepNext, spacing: { before: 40, after: 40 }, children: runs });
 }
 
-function titleParagraph(text) {
+function txt(text, opts = {}) {
+  return new TextRun({ text, font: FONT, ...opts });
+}
+
+function titleParagraph(text, { center = false } = {}) {
   return new Paragraph({
     heading: HeadingLevel.TITLE,
-    spacing: { after: 200 },
-    children: [new TextRun({ text: text || "Titre du standard" })],
+    alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
+    spacing: { after: 120 },
+    children: [txt(text || "Titre du standard", { bold: true, size: 40, color: COLORS.navy })],
   });
 }
 
-function heading1(text) {
-  return new Paragraph({
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 300, after: 150 },
-    children: [new TextRun({ text })],
+// Bandeau de section pleine largeur (fond indigo, texte blanc).
+function sectionBand(text) {
+  return new Table({
+    width: { size: contentWidth, type: WidthType.DXA },
+    columnWidths: [contentWidth],
+    layout: TableLayoutType.FIXED,
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: contentWidth, type: WidthType.DXA },
+            borders: NO_BORDERS,
+            shading: { fill: COLORS.indigo, type: ShadingType.CLEAR, color: "auto" },
+            margins: { top: 60, bottom: 60, left: 140, right: 140 },
+            children: [
+              new Paragraph({
+                keepNext: true,
+                heading: HeadingLevel.HEADING_1,
+                spacing: { before: 0, after: 0 },
+                children: [txt(text, { bold: true, size: 24, color: "FFFFFF" })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
   });
 }
 
-function heading2(text) {
-  return new Paragraph({
-    heading: HeadingLevel.HEADING_2,
-    spacing: { before: 200, after: 100 },
-    children: [new TextRun({ text })],
-  });
+function spacer(after = 120) {
+  return new Paragraph({ spacing: { after }, children: [txt("", { size: 4 })] });
 }
 
 function bodyText(text, fallback = "—") {
   return new Paragraph({
-    children: [new TextRun({ text: text && String(text).trim() ? text : fallback })],
-    spacing: { after: 120 },
+    children: [txt(text && String(text).trim() ? text : fallback, { size: 21, color: COLORS.text })],
+    spacing: { after: 100 },
   });
 }
 
 function kv(labelText, value) {
   return new Paragraph({
     children: [
-      new TextRun({ text: `${labelText} : `, bold: true }),
-      new TextRun({ text: value && String(value).trim() ? String(value) : "—" }),
+      txt(`${labelText} : `, { bold: true, size: 21 }),
+      txt(value && String(value).trim() ? String(value) : "—", { size: 21 }),
     ],
     spacing: { after: 80 },
   });
-}
-
-function calloutBox(title, text, bg, fg) {
-  return [
-    new Paragraph({
-      shading: { fill: bg, type: ShadingType.CLEAR, color: "auto" },
-      spacing: { before: 100 },
-      children: [new TextRun({ text: title, bold: true, color: fg })],
-    }),
-    new Paragraph({
-      shading: { fill: bg, type: ShadingType.CLEAR, color: "auto" },
-      spacing: { after: 150 },
-      children: [new TextRun({ text: text && text.trim() ? text : "Non renseigné", color: fg })],
-    }),
-  ];
 }
 
 function footerNote() {
   return new Paragraph({
     spacing: { before: 300 },
     children: [
-      new TextRun({
-        text: "Document généré avec Smart Standard — brouillon de standard opérationnel.",
+      txt("Document généré avec Smart Standard — brouillon de standard opérationnel.", {
         italics: true,
         size: 16,
-        color: "666666",
+        color: COLORS.slate,
       }),
     ],
   });
 }
 
-function tableCell(content, { width, header, bg, bold, colSpan, rowSpan } = {}) {
+// Cellule de tableau : largeur en pourcentage de la largeur utile (ou en
+// twips via `dxa`). `content` peut être une chaîne, un Paragraph ou un
+// tableau de ceux-ci.
+function tableCell(content, opts = {}) {
+  const {
+    width,
+    dxa,
+    header,
+    bg,
+    bold,
+    color,
+    size = 20,
+    colSpan,
+    align,
+    keepNext,
+    valign = VerticalAlign.TOP,
+    borders = BORDERS,
+  } = opts;
   const paragraphs = Array.isArray(content) ? content : [content];
+  const w = dxa ?? (width ? Math.round((width * contentWidth) / 100) : undefined);
+  const fill = header ? COLORS.headerGray : bg;
   return new TableCell({
-    width: width ? { size: width, type: WidthType.PERCENTAGE } : undefined,
+    width: w ? { size: w, type: WidthType.DXA } : undefined,
     columnSpan: colSpan,
-    rowSpan: rowSpan,
-    verticalAlign: VerticalAlign.TOP,
-    shading:
-      header || bg
-        ? { fill: header ? COLORS.headerGray : bg, type: ShadingType.CLEAR, color: "auto" }
-        : undefined,
+    verticalAlign: valign,
+    borders,
+    margins: { top: 60, bottom: 60, left: 100, right: 100 },
+    shading: fill ? { fill, type: ShadingType.CLEAR, color: "auto" } : undefined,
     children: paragraphs.map((p) =>
-      typeof p === "string"
-        ? new Paragraph({ children: [new TextRun({ text: p || "—", bold: !!header || !!bold })] })
+      typeof p === "string" || p == null
+        ? new Paragraph({
+            alignment: align,
+            keepNext,
+            children: [
+              txt(p || "—", {
+                bold: !!header || !!bold,
+                size,
+                color: color || COLORS.text,
+              }),
+            ],
+          })
         : p
     ),
   });
 }
 
 function simpleTable(headerRow, rows, widths) {
+  const dxaWidths = widths.map((w) => Math.round((w * contentWidth) / 100));
+  const total = dxaWidths.reduce((a, b) => a + b, 0);
   return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: total, type: WidthType.DXA },
+    columnWidths: dxaWidths,
+    layout: TableLayoutType.FIXED,
     rows: [
       new TableRow({
         tableHeader: true,
-        children: headerRow.map((h, i) => tableCell(h, { header: true, width: widths[i] })),
+        cantSplit: true,
+        children: headerRow.map((h, i) => tableCell(h, { header: true, dxa: dxaWidths[i], size: 19 })),
       }),
       ...rows.map(
-        (r) => new TableRow({ children: r.map((c, i) => tableCell(c, { width: widths[i] })) })
+        (r) =>
+          new TableRow({
+            cantSplit: true,
+            children: r.map((c, i) => tableCell(c, { dxa: dxaWidths[i] })),
+          })
       ),
     ],
   });
 }
 
+// Tableau d’information (libellé gris au-dessus, valeur en dessous).
+function infoTable(pairs) {
+  const n = pairs.length;
+  const w = Math.floor(contentWidth / n);
+  const widths = pairs.map(() => w);
+  return new Table({
+    width: { size: w * n, type: WidthType.DXA },
+    columnWidths: widths,
+    layout: TableLayoutType.FIXED,
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: pairs.map(([label]) =>
+          tableCell(label, { dxa: w, bg: COLORS.light, bold: true, size: 17, color: COLORS.slate })
+        ),
+      }),
+      new TableRow({
+        cantSplit: true,
+        children: pairs.map(([, value]) =>
+          tableCell(value && String(value).trim() ? String(value) : "—", { dxa: w, bold: true, size: 20 })
+        ),
+      }),
+    ],
+  });
+}
+
+// Bloc d’information coloré à deux colonnes : libellé | texte.
+function calloutRows(items) {
+  const labelW = Math.round(contentWidth * 0.2);
+  const valW = contentWidth - labelW;
+  return new Table({
+    width: { size: contentWidth, type: WidthType.DXA },
+    columnWidths: [labelW, valW],
+    layout: TableLayoutType.FIXED,
+    rows: items.map(
+      ({ label, text, bg, fg }) =>
+        new TableRow({
+          cantSplit: true,
+          children: [
+            tableCell(label, { dxa: labelW, bg, color: fg, bold: true, size: 20, valign: VerticalAlign.CENTER }),
+            tableCell(text && String(text).trim() ? text : "Non renseigné", { dxa: valW, bg }),
+          ],
+        })
+    ),
+  });
+}
+
 // --- Trame "classique" ------------------------------------------------
+
+// "Carte" d’une étape : bandeau titre, description, sécurité | qualité, puis
+// les trois photos côte à côte (terrain / OK / NOK). Les lignes ne se
+// coupent pas et restent liées entre elles (keepNext) pour que la carte
+// reste d’un seul tenant sur une page quand c’est possible.
+async function stepCard(step, index) {
+  // Grille de 6 colonnes : titre/description sur 6, sécurité | qualité sur
+  // 3+3, photos sur 2+2+2.
+  const sixth = Math.floor(contentWidth / 6);
+  const grid = [sixth, sixth, sixth, sixth, sixth, contentWidth - 5 * sixth];
+  const colW = sixth * 2;
+  const widths = [colW, colW, contentWidth - 2 * colW];
+  const half = sixth * 3;
+  const photoW = pxOf(colW) - 14;
+  const photoH = 175;
+  const hasPhotos = !!(step.preview || step.okPreview || step.nokPreview);
+
+  const hasDuration = step.duration && !["", "—", "-"].includes(String(step.duration).trim());
+  const duration = hasDuration ? `   ·   Durée : ${step.duration}` : "";
+
+  const rows = [
+    new TableRow({
+      cantSplit: true,
+      children: [
+        new TableCell({
+          columnSpan: 6,
+          width: { size: contentWidth, type: WidthType.DXA },
+          borders: BORDERS,
+          shading: { fill: COLORS.navy, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 70, bottom: 70, left: 140, right: 140 },
+          children: [
+            new Paragraph({
+              keepNext: true,
+              children: [
+                txt(`${index + 1}`, { bold: true, size: 28, color: "A5B4FC" }),
+                txt(`   ${step.title || "Étape sans titre"}`, { bold: true, size: 24, color: "FFFFFF" }),
+                txt(duration, { size: 19, color: "CBD5E1" }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new TableRow({
+      cantSplit: true,
+      children: [
+        tableCell(step.description || "Description non renseignée", {
+          colSpan: 6,
+          dxa: contentWidth,
+          size: 21,
+          keepNext: true,
+        }),
+      ],
+    }),
+    new TableRow({
+      cantSplit: true,
+      children: [
+        tableCell(
+          [
+            new Paragraph({
+              keepNext: hasPhotos,
+              children: [
+                txt("Sécurité : ", { bold: true, size: 19, color: COLORS.redText }),
+                txt(step.safety || "RAS", { size: 19, color: COLORS.redText }),
+              ],
+            }),
+          ],
+          { colSpan: 3, dxa: half, bg: COLORS.red }
+        ),
+        tableCell(
+          [
+            new Paragraph({
+              keepNext: hasPhotos,
+              children: [
+                txt("Qualité : ", { bold: true, size: 19, color: COLORS.blueText }),
+                txt(step.quality || "RAS", { size: 19, color: COLORS.blueText }),
+              ],
+            }),
+          ],
+          { colSpan: 3, dxa: contentWidth - half, bg: COLORS.blue }
+        ),
+      ],
+    }),
+  ];
+
+  if (hasPhotos) {
+    const captions = [
+      ["Photo terrain", step.preview, COLORS.slate],
+      ["Conforme (OK)", step.okPreview, COLORS.greenText],
+      ["Non conforme (NOK)", step.nokPreview, COLORS.redText],
+    ];
+    rows.push(
+      new TableRow({
+        cantSplit: true,
+        children: captions.map(([label, photo, color], i) =>
+          tableCell(
+            [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                keepNext: true,
+                children: [txt(photo ? label : "", { bold: true, size: 17, color })],
+              }),
+            ],
+            { colSpan: 2, dxa: widths[i], bg: COLORS.light }
+          )
+        ),
+      })
+    );
+    const photoCells = [];
+    for (let i = 0; i < 3; i++) {
+      const photo = captions[i][1];
+      const p = photo ? await imagesParagraph([photo], { maxW: photoW, maxH: photoH }) : null;
+      photoCells.push(
+        tableCell(p ? [p] : [new Paragraph({ children: [txt("", { size: 4 })] })], {
+          colSpan: 2,
+          dxa: widths[i],
+          valign: VerticalAlign.CENTER,
+        })
+      );
+    }
+    rows.push(new TableRow({ cantSplit: true, children: photoCells }));
+  }
+
+  return new Table({
+    width: { size: contentWidth, type: WidthType.DXA },
+    columnWidths: grid,
+    layout: TableLayoutType.FIXED,
+    rows,
+  });
+}
 
 async function buildClassique(standard, steps) {
   const content = [];
   content.push(titleParagraph(standard.title));
-  content.push(bodyText(`Zone : ${standard.zone || "Non renseignée"}   |   Référent : ${standard.owner || "Non renseigné"}`));
+  content.push(
+    infoTable([
+      ["Zone", standard.zone],
+      ["Référent", standard.owner],
+      ["Nombre d’étapes", String(steps.length)],
+    ])
+  );
+  content.push(spacer(160));
 
-  content.push(heading1("1. Objectif"));
+  content.push(sectionBand("1   OBJECTIF"));
+  content.push(spacer(60));
   content.push(bodyText(standard.objective, "Objectif non renseigné"));
+  content.push(
+    calloutRows([
+      { label: "Sécurité", text: standard.safety, bg: COLORS.red, fg: COLORS.redText },
+      { label: "Qualité", text: standard.quality, bg: COLORS.blue, fg: COLORS.blueText },
+      { label: "Moyens nécessaires", text: standard.materials, bg: COLORS.amber, fg: COLORS.amberText },
+    ])
+  );
+  content.push(spacer(160));
 
-  content.push(...calloutBox("Sécurité", standard.safety, COLORS.red, COLORS.redText));
-  content.push(...calloutBox("Qualité", standard.quality, COLORS.blue, COLORS.blueText));
-  content.push(...calloutBox("Moyens nécessaires", standard.materials, COLORS.amber, COLORS.amberText));
-
-  content.push(heading1("2. Déroulé opératoire"));
+  content.push(sectionBand("2   DÉROULÉ OPÉRATOIRE"));
+  content.push(spacer(100));
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    content.push(heading2(`${i + 1}. ${step.title || "Étape sans titre"}`));
-    content.push(bodyText(step.description, "Description non renseignée"));
-    content.push(
-      simpleTable(
-        ["Sécurité", "Qualité", "Temps"],
-        [[step.safety || "RAS", step.quality || "RAS", step.duration || "Non défini"]],
-        [34, 33, 33]
-      )
-    );
-    content.push(new Paragraph({ text: "", spacing: { after: 100 } }));
-
-    if (step.preview) content.push(await imageParagraph(step.preview));
-    if (step.okPreview) content.push(await imageParagraph(step.okPreview));
-    if (step.nokPreview) content.push(await imageParagraph(step.nokPreview));
+    content.push(await stepCard(steps[i], i));
+    content.push(spacer(160));
   }
 
-  content.push(heading1("3. Critères de validation terrain"));
+  content.push(sectionBand("3   CRITÈRES DE VALIDATION TERRAIN"));
+  content.push(spacer(60));
   content.push(bodyText(standard.control));
   content.push(footerNote());
 
@@ -248,27 +519,31 @@ async function buildInstructionTravail(standard, steps) {
   content.push(titleParagraph(standard.title));
 
   content.push(
-    simpleTable(
-      ["Propriétaire", "Date", "Machine / Zone", "Réf"],
-      [[standard.owner || "Non renseigné", standard.date || "Non renseignée", standard.zone || "Non renseignée", standard.reference || "Non renseignée"]],
-      [25, 25, 25, 25]
-    )
+    infoTable([
+      ["Propriétaire", standard.owner || "Non renseigné"],
+      ["Date", standard.date || "Non renseignée"],
+      ["Machine / Zone", standard.zone || "Non renseignée"],
+      ["Référence", standard.reference || "Non renseignée"],
+    ])
   );
-  content.push(new Paragraph({ text: "", spacing: { after: 150 } }));
+  content.push(spacer(160));
+
+  const widths = [5, 15, 40, 28, 12];
+  const illW = pxOf(Math.round((widths[3] * contentWidth) / 100)) - 16;
 
   const rows = [];
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const descParas = [
-      new Paragraph({ children: [new TextRun(step.description || "Description non renseignée")] }),
+      new Paragraph({ children: [txt(step.description || "Description non renseignée", { size: 20 })] }),
     ];
     if (step.safety) {
       descParas.push(
         new Paragraph({
           spacing: { before: 60 },
           children: [
-            new TextRun({ text: "✦ Sécurité : ", bold: true, color: COLORS.redText }),
-            new TextRun({ text: step.safety, color: COLORS.redText }),
+            txt("Sécurité : ", { bold: true, size: 19, color: COLORS.redText }),
+            txt(step.safety, { size: 19, color: COLORS.redText }),
           ],
         })
       );
@@ -278,31 +553,31 @@ async function buildInstructionTravail(standard, steps) {
         new Paragraph({
           spacing: { before: 60 },
           children: [
-            new TextRun({ text: "♦ Qualité : ", bold: true, color: COLORS.blueText }),
-            new TextRun({ text: step.quality, color: COLORS.blueText }),
+            txt("Qualité : ", { bold: true, size: 19, color: COLORS.blueText }),
+            txt(step.quality, { size: 19, color: COLORS.blueText }),
           ],
         })
       );
     }
 
     const illustration = step.preview
-      ? await imageParagraph(step.preview)
-      : new Paragraph({ children: [new TextRun({ text: "—" })] });
+      ? await imagesParagraph([step.preview], { maxW: illW, maxH: 150 })
+      : null;
 
     rows.push([
       String(i + 1),
       step.title || "Opération non renseignée",
       descParas,
-      [illustration],
+      illustration ? [illustration] : "—",
       step.duration || "—",
     ]);
   }
 
   content.push(
     simpleTable(
-      ["No.", "Opération", "Description détaillée de l’opération", "Illustration", "Temps (mn)"],
+      ["N°", "Opération", "Description détaillée de l’opération", "Illustration", "Temps (mn)"],
       rows,
-      [6, 16, 42, 22, 14]
+      widths
     )
   );
 
@@ -314,34 +589,21 @@ async function buildInstructionTravail(standard, steps) {
 
 async function buildGammeNettoyage(standard, steps) {
   const content = [];
-  content.push(
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: "Gamme de Nettoyage" })],
-    })
-  );
+  content.push(titleParagraph("Gamme de Nettoyage", { center: true }));
 
   content.push(
-    simpleTable(
-      ["Unité", "Zone", "Equipements", "Périodicité", "Date création", "Date modif.", "Resp", "Référence"],
-      [
-        [
-          standard.unite || "—",
-          standard.zone || "—",
-          standard.equipements || "—",
-          standard.periodicite || "—",
-          standard.date || "—",
-          standard.dateModif || "—",
-          standard.owner || "—",
-          standard.reference || "—",
-        ],
-      ],
-      [14, 12, 13, 12, 12, 12, 12, 13]
-    )
+    infoTable([
+      ["Unité", standard.unite],
+      ["Zone", standard.zone],
+      ["Équipements", standard.equipements],
+      ["Périodicité", standard.periodicite],
+      ["Date création", standard.date],
+      ["Date modif.", standard.dateModif],
+      ["Responsable", standard.owner],
+      ["Référence", standard.reference],
+    ])
   );
-  content.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+  content.push(spacer(140));
 
   const photoSteps = steps
     .map((step, i) => ({ step, num: i + 1 }))
@@ -350,20 +612,65 @@ async function buildGammeNettoyage(standard, steps) {
   if (photoSteps.length === 0) {
     content.push(
       new Paragraph({
-        children: [new TextRun({ text: "Aucune photo repère ajoutée.", italics: true })],
+        children: [txt("Aucune photo repère ajoutée.", { italics: true, size: 20 })],
         spacing: { after: 150 },
       })
     );
   } else {
-    for (const { step, num } of photoSteps) {
-      content.push(heading2(`Repère ${num} — ${step.title || "Élément"}`));
-      if (step.preview) content.push(await imageParagraph(step.preview));
-      if (step.preview2) content.push(await imageParagraph(step.preview2));
+    // Repères photo : 3 par ligne, chaque repère avec sa/ses photo(s).
+    const perRow = 3;
+    const cellW = Math.floor(contentWidth / perRow);
+    const colWidths = Array(perRow).fill(cellW);
+    const trows = [];
+    for (let r = 0; r < photoSteps.length; r += perRow) {
+      const chunk = photoSteps.slice(r, r + perRow);
+      const cells = [];
+      for (let c = 0; c < perRow; c++) {
+        const item = chunk[c];
+        if (!item) {
+          cells.push(tableCell([new Paragraph({ children: [txt("", { size: 4 })] })], { dxa: cellW, borders: NO_BORDERS }));
+          continue;
+        }
+        const urls = [item.step.preview, item.step.preview2].filter(Boolean);
+        const n = urls.length;
+        const maxW = Math.floor((pxOf(cellW) - 24) / n) - (n > 1 ? 4 : 0);
+        const p = await imagesParagraph(urls, { maxW, maxH: 150 });
+        cells.push(
+          tableCell(
+            [
+              new Paragraph({
+                keepNext: true,
+                children: [
+                  txt(`Repère ${item.num}`, { bold: true, size: 19, color: COLORS.indigo }),
+                  txt(` — ${item.step.title || "Élément"}`, { bold: true, size: 19 }),
+                ],
+              }),
+              p,
+            ].filter(Boolean),
+            { dxa: cellW }
+          )
+        );
+      }
+      trows.push(new TableRow({ cantSplit: true, children: cells }));
     }
+    content.push(
+      new Table({
+        width: { size: cellW * perRow, type: WidthType.DXA },
+        columnWidths: colWidths,
+        layout: TableLayoutType.FIXED,
+        rows: trows,
+      })
+    );
   }
+  content.push(spacer(140));
 
-  content.push(...calloutBox("Sécurité", standard.safety, COLORS.red, COLORS.redText));
-  content.push(...calloutBox("Qualité", standard.quality, COLORS.blue, COLORS.blueText));
+  content.push(
+    calloutRows([
+      { label: "Sécurité", text: standard.safety, bg: COLORS.red, fg: COLORS.redText },
+      { label: "Qualité", text: standard.quality, bg: COLORS.blue, fg: COLORS.blueText },
+    ])
+  );
+  content.push(spacer(140));
 
   const rows = steps.map((step, index) => [
     String(index + 1),
@@ -377,9 +684,9 @@ async function buildGammeNettoyage(standard, steps) {
 
   content.push(
     simpleTable(
-      ["N°", "Elements", "Etat standard de propreté", "Conditions", "Outillage", "Si hors standard", "Durée"],
+      ["N°", "Éléments", "État standard de propreté", "Conditions", "Outillage", "Si hors standard", "Durée"],
       rows,
-      [5, 13, 25, 12, 12, 21, 12]
+      [5, 14, 27, 11, 12, 21, 10]
     )
   );
 
@@ -387,9 +694,9 @@ async function buildGammeNettoyage(standard, steps) {
     new Paragraph({
       spacing: { before: 150 },
       children: [
-        new TextRun({
-          text: "Légende : OC = Outil Condamné · A = à l’Arrêt · M = en Marche sans produire · P = en marche et en Production",
+        txt("Légende : OC = Outil Condamné · A = à l’Arrêt · M = en Marche sans produire · P = en marche et en Production", {
           size: 16,
+          color: COLORS.slate,
         }),
       ],
     })
@@ -403,22 +710,40 @@ async function buildGammeNettoyage(standard, steps) {
 
 async function buildModeOperatoire(standard, steps) {
   const content = [];
-  content.push(
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: standard.title || "Titre du standard" })],
-    })
-  );
+  content.push(titleParagraph(standard.title, { center: true }));
 
-  if (standard.sketch) {
-    content.push(heading2("Croquis / Schéma"));
-    content.push(await imageParagraph(standard.sketch));
-  }
-  if (standard.photo) {
-    content.push(heading2("Photo"));
-    content.push(await imageParagraph(standard.photo));
+  // Croquis et photo côte à côte quand les deux existent.
+  const visuals = [];
+  if (standard.sketch) visuals.push(["Croquis / Schéma", standard.sketch]);
+  if (standard.photo) visuals.push(["Photo", standard.photo]);
+  if (visuals.length) {
+    const cellW = Math.floor(contentWidth / visuals.length);
+    const cells = [];
+    for (const [label, url] of visuals) {
+      const p = await imagesParagraph([url], { maxW: pxOf(cellW) - 20, maxH: 260 });
+      cells.push(
+        tableCell(
+          [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              keepNext: true,
+              children: [txt(label, { bold: true, size: 18, color: COLORS.slate })],
+            }),
+            p,
+          ].filter(Boolean),
+          { dxa: cellW }
+        )
+      );
+    }
+    content.push(
+      new Table({
+        width: { size: cellW * visuals.length, type: WidthType.DXA },
+        columnWidths: visuals.map(() => cellW),
+        layout: TableLayoutType.FIXED,
+        rows: [new TableRow({ cantSplit: true, children: cells })],
+      })
+    );
+    content.push(spacer(140));
   }
 
   const operators = standard.operators && standard.operators.length ? standard.operators : ["Opérateur A", "Opérateur B"];
@@ -428,35 +753,49 @@ async function buildModeOperatoire(standard, steps) {
 
   const header = [...operators, "Qui", "Comment", "Points clés"];
   const widths = [...operators.map(() => opColWidth), otherWidth * 0.18, otherWidth * 0.5, otherWidth * 0.32];
+  const dxa = widths.map((w) => Math.round((w * contentWidth) / 100));
+  const total = dxa.reduce((a, b) => a + b, 0);
 
-  // simpleTable ne gère pas le fond coloré par cellule individuellement ;
-  // on construit donc ce tableau à la main pour reprendre la mise en
-  // évidence EHS (jaune) / Qualité (rouge) du standard.
+  // On construit ce tableau à la main pour reprendre la mise en évidence
+  // EHS (jaune) / Qualité (rouge) du standard.
   const tableRows = [
     new TableRow({
       tableHeader: true,
-      children: header.map((h, i) => tableCell(h, { header: true, width: widths[i] })),
+      cantSplit: true,
+      children: header.map((h, i) =>
+        tableCell(h, { header: true, dxa: dxa[i], size: 19, align: i < operators.length ? AlignmentType.CENTER : undefined })
+      ),
     }),
     ...steps.map((step) => {
       const commentBg =
         step.category === "ehs" ? COLORS.amber : step.category === "quality" ? COLORS.red : undefined;
       const cells = [
         ...operators.map((_, i) =>
-          tableCell(step.operatorFlags?.[i] ? "✓" : "", { width: opColWidth, bold: true })
+          tableCell(step.operatorFlags?.[i] ? "✓" : "", {
+            dxa: dxa[i],
+            bold: true,
+            align: AlignmentType.CENTER,
+            color: COLORS.greenText,
+          })
         ),
-        tableCell(step.title || "—", { width: otherWidth * 0.18, bold: true }),
-        tableCell(step.description || "—", { width: otherWidth * 0.5, bg: commentBg }),
-        tableCell(step.keyPoints || "—", { width: otherWidth * 0.32 }),
+        tableCell(step.title || "—", { dxa: dxa[operators.length], bold: true }),
+        tableCell(step.description || "—", { dxa: dxa[operators.length + 1], bg: commentBg }),
+        tableCell(step.keyPoints || "—", { dxa: dxa[operators.length + 2] }),
       ];
-      return new TableRow({ children: cells });
+      return new TableRow({ cantSplit: true, children: cells });
     }),
   ];
 
   content.push(
-    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: tableRows })
+    new Table({
+      width: { size: total, type: WidthType.DXA },
+      columnWidths: dxa,
+      layout: TableLayoutType.FIXED,
+      rows: tableRows,
+    })
   );
 
-  content.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+  content.push(spacer(120));
 
   if (standard.autres) {
     content.push(kv("Autres", standard.autres));
@@ -486,9 +825,15 @@ function fileNameFor(standard) {
   return `${cleaned || "standard"}.docx`;
 }
 
+// Paysage pour les trames larges (tableaux à nombreuses colonnes).
+const LANDSCAPE_TRAMES = new Set(["instruction_travail", "gamme_nettoyage"]);
+
 // Point d’entrée : construit puis déclenche le téléchargement du document
 // Word correspondant à la trame en cours.
 export async function exportStandardToWord(trame, standard, steps) {
+  const landscape = LANDSCAPE_TRAMES.has(trame);
+  contentWidth = landscape ? CONTENT_W.landscape : CONTENT_W.portrait;
+
   let content;
   if (trame === "instruction_travail") {
     content = await buildInstructionTravail(standard, steps);
@@ -500,8 +845,63 @@ export async function exportStandardToWord(trame, standard, steps) {
     content = await buildClassique(standard, steps);
   }
 
+  const logo = await getLogoBytes();
+  const docTitle = (standard.title || "Standard").trim() || "Standard";
+
+  const header = new Header({
+    children: [
+      new Paragraph({
+        tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: COLORS.line, space: 4 } },
+        children: [
+          ...(logo
+            ? [new ImageRun({ type: "png", data: logo, transformation: { width: 22, height: 22 } }), txt("  ")]
+            : []),
+          txt("Smart Standard", { bold: true, size: 18, color: COLORS.navy }),
+          txt("\t"),
+          txt(docTitle, { size: 17, color: COLORS.slate }),
+        ],
+      }),
+    ],
+  });
+
+  const footer = new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [
+          txt("Page ", { size: 16, color: COLORS.slate }),
+          new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: COLORS.slate }),
+          txt(" / ", { size: 16, color: COLORS.slate }),
+          new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 16, color: COLORS.slate }),
+        ],
+      }),
+    ],
+  });
+
   const doc = new Document({
-    sections: [{ properties: {}, children: content }],
+    creator: "Smart Standard",
+    title: docTitle,
+    styles: {
+      default: { document: { run: { font: FONT, size: 21, color: COLORS.text } } },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: {
+              width: PAGE_W,
+              height: PAGE_H,
+              ...(landscape ? { orientation: "landscape" } : {}),
+            },
+            margin: { top: 1000, bottom: 850, left: MARGIN, right: MARGIN, header: 400, footer: 400 },
+          },
+        },
+        headers: { default: header },
+        footers: { default: footer },
+        children: content,
+      },
+    ],
   });
 
   const blob = await Packer.toBlob(doc);
