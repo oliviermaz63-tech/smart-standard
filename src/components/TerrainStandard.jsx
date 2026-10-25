@@ -3,6 +3,7 @@ import { apiFetch } from "../config";
 import { compressImage } from "../utils/compressImage";
 import { extractVideoFrames } from "../utils/videoFrames";
 import { TRAMES } from "../data/trames";
+import { notify } from "../utils/notify";
 
 export default function TerrainStandard({ trame, onBack, onGenerated }) {
   const [title, setTitle] = useState("");
@@ -57,7 +58,7 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
       );
     } catch (error) {
       console.error("Erreur compression photo :", error);
-      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+      notify("Impossible de traiter cette photo, réessaie avec une autre.", "error");
     }
   }
 
@@ -79,7 +80,7 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Reconnaissance vocale non disponible. Utilise Chrome ou Edge.");
+      notify("Reconnaissance vocale non disponible. Utilise Chrome ou Edge.", "error");
       return;
     }
 
@@ -289,10 +290,14 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        notify(data?.result || "Erreur génération IA. Réessaie dans un instant.", "error");
+        return;
+      }
       setResult(data);
     } catch (error) {
       console.error(error);
-      alert("Erreur génération IA.");
+      notify("Erreur génération IA. Réessaie dans un instant.", "error");
     } finally {
       setLoading(false);
     }
