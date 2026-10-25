@@ -5,7 +5,7 @@
 // temps, redimensionnées et compressées en JPEG. Ces images servent à la
 // fois d'entrée à l'IA et de photos terrain des étapes générées.
 
-export const MAX_VIDEO_SECONDS = 180;
+export const MAX_VIDEO_SECONDS = 600;
 
 function waitFor(target, eventName, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
@@ -33,13 +33,13 @@ function waitFor(target, eventName, timeoutMs = 10000) {
 
 // Nombre d'images à extraire selon la durée : une toutes les ~4 secondes,
 // entre 6 et `maxFrames`.
-export function frameCountFor(duration, maxFrames = 12) {
+export function frameCountFor(duration, maxFrames = 16) {
   return Math.max(6, Math.min(maxFrames, Math.round(duration / 4)));
 }
 
 export async function extractVideoFrames(
   file,
-  { maxFrames = 12, maxDimension = 800, quality = 0.7, onProgress } = {}
+  { maxFrames = 16, maxDimension = 800, quality = 0.7, onProgress } = {}
 ) {
   if (!file) throw new Error("Aucune vidéo sélectionnée.");
 
