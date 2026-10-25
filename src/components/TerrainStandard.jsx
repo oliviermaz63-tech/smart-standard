@@ -10,6 +10,7 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
   const [zone, setZone] = useState("");
   const [machine, setMachine] = useState("");
   const [objective, setObjective] = useState("");
+  const [videoNotes, setVideoNotes] = useState(""); // commentaires dictés/écrits pour l'import vidéo
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -96,6 +97,10 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
 
       if (target === "objective") {
         setObjective((prev) => `${prev} ${text}`.trim());
+      }
+
+      if (target === "videoNotes") {
+        setVideoNotes((prev) => `${prev} ${text}`.trim());
       }
 
       if (target === "step" && stepId) {
@@ -187,6 +192,7 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
           zone,
           machine,
           objective,
+          notes: videoNotes.trim(),
           trame,
           frames: frames.map((f) => f.dataUrl),
           frameTimes: frames.map((f) => Number(f.time.toFixed(1))),
@@ -379,6 +385,34 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
             {videoStatus.text}
           </div>
         )}
+
+        <div className="ss-card p-6 space-y-3">
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="text-xl font-black">🎬 Commentaires pour l'import vidéo</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Facultatif. Dis ce que l'opérateur explique dans la vidéo : critères OK/NOK, cotes, sécurité, erreurs fréquentes. L'IA s'en sert avec les images.
+              </p>
+            </div>
+            <button
+              onClick={() => startVoice("videoNotes")}
+              className={`px-4 py-2 rounded-xl font-bold ${
+                listening === "videoNotes"
+                  ? "bg-red-600 text-white"
+                  : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              🎤 {listening === "videoNotes" ? "Écoute..." : "Dicter"}
+            </button>
+          </div>
+          <textarea
+            placeholder="Ex : Contrôle visuel du carter sous éclairage LED à 30 cm. Rayure NOK si > 2 mm. Diamètre 50 ± 0,1 mm au pied à coulisse. Pièce NOK : étiquette rouge et zone de quarantaine."
+            value={videoNotes}
+            maxLength={4000}
+            onChange={(e) => setVideoNotes(e.target.value)}
+            className="w-full border rounded-xl p-4 min-h-[110px]"
+          />
+        </div>
 
         <div className="ss-card p-6 space-y-5">
           <h2 className="text-2xl font-black">Informations générales</h2>
