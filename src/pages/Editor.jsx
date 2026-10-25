@@ -3,6 +3,7 @@ import { apiFetch } from "../config";
 import { PhotoUpload } from "../components/TerrainStandard";
 import { compressImage } from "../utils/compressImage";
 import { exportStandardToWord } from "../utils/exportWord";
+import { notify, confirmAction } from "../utils/notify";
 
 const STORAGE_KEY = "smart-standard-editor-draft";
 const LIBRARY_KEY = "smart-standard-library";
@@ -343,14 +344,12 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
     setTrame(key);
   }
 
-  function changeTrame() {
-    if (
-      !confirm(
-        "Changer de trame réinitialise le standard en cours. Continuer ?"
-      )
-    ) {
-      return;
-    }
+  async function changeTrame() {
+    const ok = await confirmAction(
+      "Changer de trame réinitialise le standard en cours. Continuer ?",
+      { confirmLabel: "Changer de trame", danger: true }
+    );
+    if (!ok) return;
     setTrame(null);
     setStandard(emptyStandard);
     setSteps([emptyStep]);
@@ -450,7 +449,7 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
       setStandard((current) => ({ ...current, [field]: compressed }));
     } catch (error) {
       console.error("Erreur compression photo :", error);
-      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+      notify("Impossible de traiter cette photo, réessaie avec une autre.", "error");
     }
   }
 
@@ -476,7 +475,7 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
       );
     } catch (error) {
       console.error("Erreur compression photo :", error);
-      alert("Impossible de traiter cette photo, réessaie avec une autre.");
+      notify("Impossible de traiter cette photo, réessaie avec une autre.", "error");
     }
   }
 
@@ -520,7 +519,7 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
       await exportStandardToWord(trame, standard, steps);
     } catch (error) {
       console.error("Erreur export Word :", error);
-      alert("Impossible de générer le fichier Word, réessaie.");
+      notify("Impossible de générer le fichier Word, réessaie.", "error");
     } finally {
       setExportingWord(false);
     }
@@ -536,7 +535,7 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
       await exportStandardToExcel(trame, standard, steps);
     } catch (error) {
       console.error("Erreur export Excel :", error);
-      alert("Impossible de générer le fichier Excel, réessaie.");
+      notify("Impossible de générer le fichier Excel, réessaie.", "error");
     } finally {
       setExportingExcel(false);
     }
@@ -565,11 +564,12 @@ export default function Editor({ onBack, openStandard, presetTrame }) {
         LIBRARY_KEY,
         JSON.stringify([newStandard, ...existingLibrary])
       );
-      alert("Standard sauvegardé dans la bibliothèque.");
+      notify("Standard sauvegardé dans la bibliothèque.", "success");
     } catch (error) {
       console.error("Erreur sauvegarde bibliothèque :", error);
-      alert(
-        "Impossible de sauvegarder : la bibliothèque est trop volumineuse (trop de photos accumulées). Exporte ce standard en Word/Excel pour ne pas le perdre, puis libère de la place en supprimant d'anciens standards de la bibliothèque."
+      notify(
+        "Impossible de sauvegarder : la bibliothèque est trop volumineuse (trop de photos accumulées). Exporte ce standard en Word/Excel pour ne pas le perdre, puis libère de la place en supprimant d'anciens standards de la bibliothèque.",
+        "error"
       );
     }
   }

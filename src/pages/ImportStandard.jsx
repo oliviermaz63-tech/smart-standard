@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { apiFetch } from "../config";
+import { notify } from "../utils/notify";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -82,10 +83,10 @@ export default function ImportStandard({ onBack }) {
         return;
       }
 
-      alert("Format non supporté.");
+      notify("Format non supporté.", "error");
     } catch (error) {
       console.error(error);
-      alert("Erreur lecture fichier : " + error.message);
+      notify("Erreur lecture fichier : " + error.message, "error");
     }
   }
 

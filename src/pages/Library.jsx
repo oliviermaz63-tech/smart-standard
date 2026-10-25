@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmAction } from "../utils/notify";
 
 const LIBRARY_KEY = "smart-standard-library";
 
@@ -14,10 +15,12 @@ export default function Library({ onBack, onOpenStandard }) {
     JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]")
   );
 
-  function deleteStandard(id) {
-    if (!confirm("Supprimer définitivement ce standard de la bibliothèque ?")) {
-      return;
-    }
+  async function deleteStandard(id) {
+    const ok = await confirmAction("Supprimer définitivement ce standard de la bibliothèque ?", {
+      confirmLabel: "Supprimer",
+      danger: true,
+    });
+    if (!ok) return;
     const updated = standards.filter((item) => item.id !== id);
     localStorage.setItem(LIBRARY_KEY, JSON.stringify(updated));
     setStandards(updated);
