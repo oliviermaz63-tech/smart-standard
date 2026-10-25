@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import OpenAI from "openai";
+import { aiComplete, currentProvider } from "./aiProvider.js";
 import rateLimit from "express-rate-limit";
 
 dotenv.config();
@@ -96,10 +96,6 @@ const aiLimiter = rateLimit({
 
 app.use("/api/", aiLimiter, requireAppKey);
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 /* =======================================================
    ANALYSE STANDARD EXISTANT
 ======================================================= */
@@ -108,9 +104,10 @@ app.post("/api/analyze-imported-standard", async (req, res) => {
   try {
     const { importedText } = req.body;
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-5.6-terra",
-      reasoning_effort: "none",
+    const completion = await aiComplete({
+      tier: "fast",
+      json: false,
+      maxTokens: 4000,
       messages: [
         {
           role: "system",
@@ -173,7 +170,7 @@ Réponds en français avec :
     });
 
     res.json({
-      result: completion.choices[0].message.content,
+      result: completion,
     });
   } catch (error) {
     console.error("Erreur import IA :", error);
@@ -183,6 +180,19 @@ Réponds en français avec :
   }
 });
 
+// Consignes spécifiques par trame, partagées par la génération depuis
+// des étapes saisies (mode terrain) et depuis une vidéo.
+const TRAME_GUIDANCE = {
+  classique:
+    "Trame CLASSIQUE : priorise standard.safety, standard.quality, standard.materials, standard.control (consignes générales), et pour chaque step remplis title, description, safety, quality, duration.",
+  instruction_travail:
+    "Trame INSTRUCTION DE TRAVAIL : format compact fiche de poste. Remplis standard.reference et standard.date si déductibles, et pour chaque step remplis surtout title, description et duration (temps estimé si déductible, sinon laisse vide).",
+  gamme_nettoyage:
+    "Trame GAMME DE NETTOYAGE : remplis standard.unite, standard.equipements (avec la machine/poste fournie), standard.periodicite si déductible. Pour chaque step remplis title, description, conditions (ex: 'OC' = organe en contact, 'A' = autour), tooling (matériel de nettoyage utilisé), outOfStandard (action corrective si hors standard).",
+  mode_operatoire:
+    "Trame MODE OPÉRATOIRE : plusieurs opérateurs se partagent les opérations. Remplis standard.operators (liste de noms d'opérateurs, déduis-en un nombre raisonnable si non précisé, ex: ['Opérateur A','Opérateur B']). Pour chaque step remplis title, description, operatorFlags (tableau de booléens de la même longueur que standard.operators, true pour les opérateurs concernés par cette étape), category ('ehs' ou 'quality' ou vide), keyPoints (point clé à retenir).",
+};
+
 /* =======================================================
    GENERATION STANDARD MODE TERRAIN JSON
 ======================================================= */
@@ -191,17 +201,6 @@ app.post("/api/generate-terrain-standard", async (req, res) => {
   try {
     const { title, zone, machine, objective, steps, trame } = req.body;
     const trameKey = trame || "classique";
-
-    const TRAME_GUIDANCE = {
-      classique:
-        "Trame CLASSIQUE : priorise standard.safety, standard.quality, standard.materials, standard.control (consignes générales), et pour chaque step remplis title, description, safety, quality, duration.",
-      instruction_travail:
-        "Trame INSTRUCTION DE TRAVAIL : format compact fiche de poste. Remplis standard.reference et standard.date si déductibles, et pour chaque step remplis surtout title, description et duration (temps estimé si déductible, sinon laisse vide).",
-      gamme_nettoyage:
-        "Trame GAMME DE NETTOYAGE : remplis standard.unite, standard.equipements (avec la machine/poste fournie), standard.periodicite si déductible. Pour chaque step remplis title, description, conditions (ex: 'OC' = organe en contact, 'A' = autour), tooling (matériel de nettoyage utilisé), outOfStandard (action corrective si hors standard).",
-      mode_operatoire:
-        "Trame MODE OPÉRATOIRE : plusieurs opérateurs se partagent les opérations. Remplis standard.operators (liste de noms d'opérateurs, déduis-en un nombre raisonnable si non précisé, ex: ['Opérateur A','Opérateur B']). Pour chaque step remplis title, description, operatorFlags (tableau de booléens de la même longueur que standard.operators, true pour les opérateurs concernés par cette étape), category ('ehs' ou 'quality' ou vide), keyPoints (point clé à retenir).",
-    };
 
     const terrainData = `
 TRAME CHOISIE : ${trameKey}
@@ -228,12 +227,10 @@ dispose bien d'une référence photo.
 ${JSON.stringify(steps, null, 2)}
 `;
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-5.6-terra",
-      reasoning_effort: "none",
-      response_format: {
-        type: "json_object",
-      },
+    const completion = await aiComplete({
+      tier: "fast",
+      json: true,
+      maxTokens: 6000,
       messages: [
         {
           role: "system",
@@ -409,7 +406,7 @@ Réponds uniquement en JSON valide.
       ],
     });
 
-    const result = JSON.parse(completion.choices[0].message.content);
+    const result = JSON.parse(completion);
     res.json(result);
   } catch (error) {
     console.error("Erreur terrain IA :", error);
@@ -504,9 +501,10 @@ Analyse ce standard :
 `;
     }
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-5.6-terra",
-      reasoning_effort: "none",
+    const completion = await aiComplete({
+      tier: "fast",
+      json: false,
+      maxTokens: 6000,
       messages: [
         {
           role: "system",
@@ -520,7 +518,7 @@ Analyse ce standard :
     });
 
     res.json({
-      result: completion.choices[0].message.content,
+      result: completion,
     });
   } catch (error) {
     console.error("Erreur IA :", error);
@@ -531,8 +529,167 @@ Analyse ce standard :
   }
 });
 
+/* =======================================================
+   GENERATION STANDARD A PARTIR D'UNE VIDEO
+   -------------------------------------------------------
+   Le navigateur extrait quelques images clés de la vidéo (la vidéo
+   elle-même n'est jamais envoyée) et les envoie ici, dans l'ordre
+   chronologique. L'IA les regarde, déduit les opérations et rédige le
+   standard ; pour chaque étape elle indique quelle image l'illustre
+   (frameIndex), que le navigateur rattache ensuite comme photo terrain.
+======================================================= */
+
+const MAX_VIDEO_FRAMES = 16;
+const MAX_FRAME_CHARS = 600_000; // ~450 Ko par image en base64
+
+app.post("/api/generate-from-video", async (req, res) => {
+  try {
+    const { title, zone, machine, objective, notes, trame, frames, frameTimes } = req.body;
+    const trameKey = trame || "classique";
+
+    if (
+      !Array.isArray(frames) ||
+      frames.length < 2 ||
+      frames.length > MAX_VIDEO_FRAMES ||
+      frames.some(
+        (f) =>
+          typeof f !== "string" ||
+          !f.startsWith("data:image/jpeg;base64,") ||
+          f.length > MAX_FRAME_CHARS
+      )
+    ) {
+      return res.status(400).json({
+        validation: {
+          status: "ECHEC",
+          score: 0,
+          problems: ["Images de la vidéo invalides ou trop nombreuses"],
+          weakWords: [],
+          missingData: [],
+          recommendationsBeforeUse: [],
+        },
+        standard: {},
+        steps: [],
+      });
+    }
+
+    const times = Array.isArray(frameTimes) ? frameTimes : [];
+    const context = `
+TRAME CHOISIE : ${trameKey}
+
+CONTEXTE FOURNI PAR L'UTILISATEUR (peut être vide) :
+- Titre : ${title || "non précisé"}
+- Zone : ${zone || "non précisée"}
+- Machine / poste : ${machine || "non précisé"}
+- Objectif : ${objective || "non précisé"}
+- Notes de l'opérateur sur la vidéo : ${notes || "aucune"}
+
+Les ${frames.length} images ci-dessous sont extraites d'une vidéo de l'opération, dans l'ordre chronologique.
+Numérotation : image 0 à image ${frames.length - 1}${
+      times.length === frames.length
+        ? ` (instants en secondes : ${times.map((t, i) => `${i}=${Number(t).toFixed(1)}s`).join(", ")})`
+        : ""
+    }.
+`;
+
+    const userContent = [{ type: "text", text: context }];
+    frames.forEach((frame, i) => {
+      userContent.push({ type: "text", text: `Image ${i} :` });
+      userContent.push({ type: "image_url", image_url: { url: frame, detail: "auto" } });
+    });
+
+    const completion = await aiComplete({
+      tier: "smart",
+      json: true,
+      maxTokens: 6000,
+      messages: [
+        {
+          role: "system",
+          content: `
+Tu es le moteur IA de Smart Standard, expert Lean Manufacturing, standards terrain, sécurité, qualité et formation opérateur.
+
+TÂCHE :
+À partir d'images extraites d'une vidéo d'opération, rédiger un standard opérationnel exploitable.
+
+RÈGLES ABSOLUES :
+- Tu ne décris et ne retiens QUE ce qui est visible sur les images ou fourni par l'utilisateur. Tu n'inventes jamais un seuil, une durée, une référence, un outil ou un critère qui n'est pas visible ou fourni.
+- Ce qui ne se voit pas (durées, tolérances, couples, réglages, cadence, consignes implicites) reste vide dans les champs, et tu le listes dans "missingData" avec la question à poser à l'opérateur.
+- Les équipements de protection visibles (gants, lunettes, chaussures...) peuvent être cités en sécurité. Un risque évident visible (pièce coupante, partie en mouvement) peut être signalé, mais ne mets pas de consigne chiffrée.
+- Regroupe les images consécutives qui montrent la même action en UNE étape. Vise entre 3 et 10 étapes, dans l'ordre chronologique de la vidéo, avec des verbes d'action précis.
+- Pour chaque étape, "frameIndex" = numéro de l'image la plus nette et la plus représentative de l'action (photo terrain). "okFrameIndex" / "nokFrameIndex" : mets un numéro SEULEMENT si une image montre clairement l'état conforme / non conforme attendu ; sinon null.
+- Si la vidéo est inexploitable (trop sombre, sans opération visible), mets un score < 40 et explique-le dans "problems".
+
+ÉVALUATION :
+Score de confiance 0-100. Pénalise : critères non mesurables (aucun seuil visible), absence de références OK/NOK, étapes ambiguës, mots faibles (vérifier, contrôler, correctement, propre, si nécessaire...). Jamais 90+ à partir d'une vidéo seule. Si score < 70 statut ECHEC, sinon OK ; génère toujours le standard dans les deux cas.
+
+CONSIGNE SPÉCIFIQUE À LA TRAME CHOISIE :
+${TRAME_GUIDANCE[trameKey] || TRAME_GUIDANCE.classique}
+
+FORMAT JSON STRICT (ne remplis que les champs pertinents pour la trame ; laisse "" ou [] sinon) :
+{
+  "validation": {
+    "status": "OK ou ECHEC",
+    "score": 0,
+    "problems": [],
+    "weakWords": [{ "word": "...", "where": "...", "whyProblem": "...", "requiredClarification": "..." }],
+    "missingData": [],
+    "recommendationsBeforeUse": []
+  },
+  "standard": {
+    "title": "...", "zone": "...", "owner": "", "reference": "", "date": "",
+    "objective": "...", "safety": "", "quality": "", "materials": "", "control": "",
+    "unite": "", "equipements": "", "periodicite": "", "autres": "", "accordResponsable": "",
+    "operators": ["Opérateur A", "Opérateur B"]
+  },
+  "steps": [
+    {
+      "title": "Titre court de l'opération",
+      "description": "...",
+      "safety": "", "quality": "", "duration": "",
+      "conditions": "", "tooling": "", "outOfStandard": "",
+      "operatorFlags": [false, false], "category": "", "keyPoints": "",
+      "frameIndex": 0, "okFrameIndex": null, "nokFrameIndex": null
+    }
+  ]
+}
+
+Réponds uniquement en JSON valide, en français.
+`,
+        },
+        { role: "user", content: userContent },
+      ],
+    });
+
+    const result = JSON.parse(completion);
+    // Sécurise les indices d'images renvoyés par l'IA (entiers dans la
+    // plage des images reçues, sinon null).
+    const safeIndex = (v) =>
+      Number.isInteger(v) && v >= 0 && v < frames.length ? v : null;
+    result.steps = (result.steps || []).map((step) => ({
+      ...step,
+      frameIndex: safeIndex(step.frameIndex),
+      okFrameIndex: safeIndex(step.okFrameIndex),
+      nokFrameIndex: safeIndex(step.nokFrameIndex),
+    }));
+    res.json(result);
+  } catch (error) {
+    console.error("Erreur vidéo IA :", error);
+    res.status(500).json({
+      validation: {
+        status: "ECHEC",
+        score: 0,
+        problems: ["Erreur serveur IA"],
+        weakWords: [],
+        missingData: ["Impossible de générer le standard à partir de la vidéo"],
+        recommendationsBeforeUse: [],
+      },
+      standard: {},
+      steps: [],
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Serveur Smart Standard démarré sur le port ${PORT}`);
+  console.log(`Serveur Smart Standard démarré sur le port ${PORT} (IA : ${currentProvider()})`);
 });
