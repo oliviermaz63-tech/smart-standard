@@ -7,6 +7,9 @@ import rateLimit from "express-rate-limit";
 dotenv.config();
 
 const app = express();
+// Railway place un proxy devant le serveur : sans ceci, toutes les requêtes
+// semblent venir de la même IP et la limite de débit serait partagée.
+app.set("trust proxy", 1);
 
 /* =======================================================
    PROTECTION DE L'API

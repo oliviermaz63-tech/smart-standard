@@ -55,6 +55,9 @@ const JSON_TOOL = {
   input_schema: { type: "object", additionalProperties: true },
 };
 
+// Modèles qui refusent tool_choice forcé (rempli à la volée).
+const noForcedTool = new Set();
+
 async function completeWithClaude({ tier, json, maxTokens, messages }) {
   const model =
     tier === "smart"
@@ -69,23 +72,53 @@ async function completeWithClaude({ tier, json, maxTokens, messages }) {
     .filter((m) => m.role !== "system")
     .map((m) => ({ role: m.role, content: toClaudeContent(m.content) }));
 
-  const response = await getAnthropic().messages.create({
-    model,
-    max_tokens: maxTokens,
-    system,
-    messages: chat,
-    ...(json ? { tools: [JSON_TOOL], tool_choice: { type: "tool", name: JSON_TOOL.name } } : {}),
-  });
+  const base = { model, max_tokens: maxTokens, system, messages: chat };
 
-  if (json) {
-    const block = response.content.find((b) => b.type === "tool_use");
-    if (!block) throw new Error("Claude n'a pas renvoyé de résultat structuré.");
-    return JSON.stringify(block.input);
+  if (!json) {
+    const response = await getAnthropic().messages.create(base);
+    return response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("");
   }
-  return response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+
+  // Sortie JSON via un appel d'outil. Certains modèles (ex. Sonnet 5.5)
+  // refusent tool_choice "forcé" : on retombe alors sur "auto" avec une
+  // consigne explicite, et on mémorise le modèle pour les appels suivants.
+  const call = (forced) =>
+    getAnthropic().messages.create({
+      ...base,
+      system: forced
+        ? system
+        : `${system}\n\nIMPORTANT : tu dois répondre uniquement en appelant l'outil "${JSON_TOOL.name}" avec le JSON demandé.`,
+      tools: [JSON_TOOL],
+      tool_choice: forced ? { type: "tool", name: JSON_TOOL.name } : { type: "auto" },
+    });
+
+  let response;
+  if (noForcedTool.has(model)) {
+    response = await call(false);
+  } else {
+    try {
+      response = await call(true);
+    } catch (err) {
+      if (err?.status === 400 && /tool_choice/i.test(err?.message || "")) {
+        noForcedTool.add(model);
+        response = await call(false);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const block = response.content.find((b) => b.type === "tool_use");
+  if (block) return JSON.stringify(block.input);
+  // Dernier recours : le modèle a répondu en texte, on tente d'y lire le JSON.
+  const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start !== -1 && end > start) return text.slice(start, end + 1);
+  throw new Error("Claude n'a pas renvoyé de résultat structuré.");
 }
 
 async function completeWithOpenAI({ json, messages }) {
