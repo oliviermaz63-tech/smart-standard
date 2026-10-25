@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { apiFetch } from "../config";
 import { compressImage } from "../utils/compressImage";
+import { extractVideoFrames } from "../utils/videoFrames";
 import { TRAMES } from "../data/trames";
 
 export default function TerrainStandard({ trame, onBack, onGenerated }) {
@@ -12,6 +13,8 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [listening, setListening] = useState(null);
+  const [videoStatus, setVideoStatus] = useState(null); // { type: "info" | "error", text }
+  const videoInputRef = useRef(null);
 
   const trameInfo = TRAMES[trame] || TRAMES.classique;
 
@@ -156,6 +159,73 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
     ]);
   }
 
+
+  // Génère le standard à partir d'une vidéo : on extrait quelques images
+  // clés dans le navigateur (la vidéo n'est jamais envoyée), l'IA les
+  // regarde et rédige les étapes, puis chaque étape reçoit comme photo
+  // terrain l'image que l'IA a jugée la plus représentative.
+  async function importVideo(file) {
+    if (!file) return;
+    try {
+      setLoading(true);
+      setResult(null);
+      setVideoStatus({ type: "info", text: "Lecture de la vidéo…" });
+
+      const { frames } = await extractVideoFrames(file, {
+        onProgress: (done, total) =>
+          setVideoStatus({ type: "info", text: `Extraction des images clés : ${done} / ${total}` }),
+      });
+
+      setVideoStatus({ type: "info", text: "L'IA analyse la vidéo et rédige le standard (10 à 30 secondes)…" });
+
+      const response = await apiFetch("/api/generate-from-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          zone,
+          machine,
+          objective,
+          trame,
+          frames: frames.map((f) => f.dataUrl),
+          frameTimes: frames.map((f) => Number(f.time.toFixed(1))),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.steps || data.steps.length === 0) {
+        throw new Error(
+          data?.validation?.problems?.[0] || "L'IA n'a pas pu rédiger de standard à partir de cette vidéo."
+        );
+      }
+
+      const frameAt = (index) => (index === null || index === undefined ? null : frames[index]?.dataUrl || null);
+
+      // Les étapes générées deviennent les étapes du formulaire, modifiables
+      // ensuite comme des étapes saisies à la main.
+      setSteps(
+        data.steps.map((step, i) => ({
+          id: Date.now() + i,
+          description: step.description || step.title || "",
+          preview: frameAt(step.frameIndex),
+          okPreview: frameAt(step.okFrameIndex),
+          nokPreview: frameAt(step.nokFrameIndex),
+        }))
+      );
+      if (data.standard?.title && !title) setTitle(data.standard.title);
+      if (data.standard?.zone && !zone) setZone(data.standard.zone);
+      if (data.standard?.objective && !objective) setObjective(data.standard.objective);
+      setResult(data);
+      setVideoStatus(null);
+    } catch (error) {
+      console.error("Erreur import vidéo :", error);
+      setVideoStatus({ type: "error", text: error.message || "Erreur lors de l'analyse de la vidéo." });
+    } finally {
+      setLoading(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  }
+
   // Combine le standard rédigé par l'IA avec les photos prises sur le
   // terrain (l'IA ne génère que du texte, jamais d'image) pour produire un
   // standard exploitable tel quel dans l'éditeur.
@@ -263,18 +333,47 @@ export default function TerrainStandard({ trame, onBack, onGenerated }) {
               </h1>
 
               <p className="text-indigo-50 mt-2 text-lg max-w-3xl">
-                Photos + notes + dictée vocale terrain → l'IA rédige le standard, dans la trame « {trameInfo.label} ».
+                Photos + notes + dictée vocale terrain, ou une simple vidéo de l'opération → l'IA rédige le standard, dans la trame « {trameInfo.label} ».
               </p>
             </div>
 
-            <button
-              onClick={fillDemo}
-              className="btn-secondary px-6 py-4"
-            >
-              ⚡ Charger une démo
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                disabled={loading}
+                className="btn-primary px-6 py-4"
+              >
+                🎬 Importer une vidéo
+              </button>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => importVideo(e.target.files?.[0])}
+              />
+              <button
+                onClick={fillDemo}
+                className="btn-secondary px-6 py-4"
+              >
+                ⚡ Charger une démo
+              </button>
+            </div>
           </div>
         </div>
+
+        {videoStatus && (
+          <div
+            className={`rounded-2xl p-4 font-semibold ${
+              videoStatus.type === "error"
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+            }`}
+          >
+            {videoStatus.type === "error" ? "⚠️ " : "⏳ "}
+            {videoStatus.text}
+          </div>
+        )}
 
         <div className="ss-card p-6 space-y-5">
           <h2 className="text-2xl font-black">Informations générales</h2>
